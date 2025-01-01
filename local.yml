@@ -1,0 +1,6 @@
+---
+- name: init
+  hosts: localhost
+  tasks:
+    - ping: 
+...
