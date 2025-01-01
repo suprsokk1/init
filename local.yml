@@ -1,6 +1,17 @@
 ---
 - name: init
   hosts: localhost
+  gather_facts: false
   tasks:
-    - ping: 
+    - ping:
+
+- name: init
+  hosts: localhost
+  gather_facts: true
+  environment:
+    PIPX_BIN_DIR: "{{ ansible_user_dir }}/opt/pipx/bin"
+
+  tasks:
+    - name: Package managers
+      package: name=cargo,cabal,pip,pipx state=installed
 ...
