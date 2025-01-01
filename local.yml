@@ -1,17 +1,37 @@
 ---
-- name: init
-  hosts: localhost
-  gather_facts: false
-  tasks:
-    - ping:
-
-- name: init
+- name: INIT
   hosts: localhost
   gather_facts: true
-  environment:
-    PIPX_BIN_DIR: "{{ ansible_user_dir }}/opt/pipx/bin"
-
   tasks:
     - name: Package managers
-      package: name=cargo,cabal,pip,pipx state=installed
+      ansible.builtin.package: name={{ pkg }} state=installed
+      become: true
+      vars:
+        pkg: [cargo, cabal, python-pip, pipx]
+
+    - name: PIP
+      ansible.builtin.pip: name={{ pkg }} state=present
+      vars:
+        pkg: [polars, pandas]
+
+    - name: PIPX
+      community.general.pipx: name={{ pkg }} state=install
+      environment:
+        PIPX_HOME: "{{ ansible_user_dir }}/opt/pipx"
+        PIPX_BIN_DIR: "{{ ansible_user_dir }}/opt/pipx/bin"
+      vars:
+        pkg: [black, isort, nose, poetry, pyflakes, pytest, ruff]
+
+    - name: CARGO
+      community.general.cargo: name={{ pkg }} state=present
+      environment:
+        CARGO_HOME: {{ ansible_user_dir }}/opt/pipx"
+      vars:
+        pkg: [rg, fd, sd, topgrade, vivid]
+
+    - name: Emacs
+      ansible.builtin.package: name={{ pkg }} state=installed
+      become: true
+      vars:
+        pkg: [emacs]
 ...
