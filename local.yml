@@ -19,7 +19,7 @@
       environment:
         PIPX_HOME: "{{ ansible_user_dir }}/opt/pipx"
         PIPX_BIN_DIR: "{{ ansible_user_dir }}/opt/pipx/bin"
-      with_items: {{ pkg }}
+      with_items: "{{ pkg }}"
       vars:
         pkg: [black, isort, nose, poetry, pyflakes, pytest, ruff]
 
