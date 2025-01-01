@@ -25,7 +25,7 @@
     - name: CARGO
       community.general.cargo: name={{ pkg }} state=present
       environment:
-        CARGO_HOME: {{ ansible_user_dir }}/opt/pipx"
+        CARGO_HOME: "{{ ansible_user_dir }}/opt/cargo"
       vars:
         pkg: [rg, fd, sd, topgrade, vivid]
 
