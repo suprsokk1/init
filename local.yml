@@ -19,8 +19,9 @@
       environment:
         PIPX_HOME: "{{ ansible_user_dir }}/opt/pipx"
         PIPX_BIN_DIR: "{{ ansible_user_dir }}/opt/pipx/bin"
+      with_items: {{ pkg }}
       vars:
-        pkg: black, isort, nose, poetry, pyflakes, pytest, ruff
+        pkg: [black, isort, nose, poetry, pyflakes, pytest, ruff]
 
     - name: CARGO
       community.general.cargo: name={{ pkg }} state=present
