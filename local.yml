@@ -7,7 +7,7 @@
       ansible.builtin.package: name={{ pkg }} state=installed
       become: true
       vars:
-        pkg: [cargo, cabal, python-pip, pipx]
+        pkg: [cargo, python-pip, pipx]
 
     - name: PIP
       ansible.builtin.pip: name={{ pkg }} state=present
