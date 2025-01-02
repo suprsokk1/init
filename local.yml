@@ -21,7 +21,7 @@
         PIPX_BIN_DIR: "{{ ansible_user_dir }}/opt/pipx/bin"
       with_items: "{{ pkg }}"
       vars:
-        pkg: [yq]
+        pkg: [yq, pre-commit]
 
     - name: CARGO
       community.general.cargo: name={{ pkg }} state=present
