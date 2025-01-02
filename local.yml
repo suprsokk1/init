@@ -2,13 +2,6 @@
 - name: INIT
   hosts: localhost
   gather_facts: true
-  vars:
-    state:
-      present:
-        package: installed
-        pip: present
-        pipx: install
-        cargo: present
   tasks:
     - name: Package managers
       ansible.builtin.package: name={{ pkg }} state=installed
@@ -35,11 +28,19 @@
       environment:
         CARGO_HOME: "{{ ansible_user_dir }}/opt/cargo"
       vars:
-        pkg: [rg, fd-find, sd, topgrade, vivid]
+        pkg: [ripgrep, fd-find, sd, topgrade, vivid]
 
     - name: Emacs
       ansible.builtin.package: name={{ pkg }} state=installed
       become: true
       vars:
         pkg: [emacs]
+
+  vars:
+    state:
+      present:
+        package: installed
+        pip: present
+        pipx: install
+        cargo: present
 ...
