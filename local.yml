@@ -2,6 +2,13 @@
 - name: INIT
   hosts: localhost
   gather_facts: true
+  vars:
+    state:
+      present:
+        package: installed
+        pip: present
+        pipx: install
+        cargo: present
   tasks:
     - name: Package managers
       ansible.builtin.package: name={{ pkg }} state=installed
@@ -12,7 +19,7 @@
     - name: PIP
       ansible.builtin.pip: name={{ pkg }} state=present
       vars:
-        pkg: [polars, pandas]
+        pkg: [polars, pandas, black, isort, nose, poetry, pyflakes, pytest, ruff, ruff-lsp]
 
     - name: PIPX
       community.general.pipx: name={{ item }} state=install
@@ -21,14 +28,14 @@
         PIPX_BIN_DIR: "{{ ansible_user_dir }}/opt/pipx/bin"
       with_items: "{{ pkg }}"
       vars:
-        pkg: [black, isort, nose, poetry, pyflakes, pytest, ruff]
+        pkg: [yq]
 
     - name: CARGO
       community.general.cargo: name={{ pkg }} state=present
       environment:
         CARGO_HOME: "{{ ansible_user_dir }}/opt/cargo"
       vars:
-        pkg: [rg, fd, sd, topgrade, vivid]
+        pkg: [rg, fd-find, sd, topgrade, vivid]
 
     - name: Emacs
       ansible.builtin.package: name={{ pkg }} state=installed
