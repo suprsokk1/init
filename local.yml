@@ -1,46 +1,54 @@
 ---
 - name: INIT
   hosts: localhost
+  connection: local
   gather_facts: true
   tasks:
     - name: Package managers
-      ansible.builtin.package: name={{ pkg }} state=installed
+      ansible.builtin.package: name={{ pkg }}
       become: true
       vars:
         pkg: [cargo, python-pip, pipx]
 
     - name: PIP
-      ansible.builtin.pip: name={{ pkg }} state=present
+      ansible.builtin.pip: name={{ pkg }}
       vars:
         pkg: [polars, pandas, black, isort, nose, poetry, pyflakes, pytest, ruff, ruff-lsp]
 
     - name: PIPX
-      community.general.pipx: name={{ item }} state=install
+      community.general.pipx: name={{ item }}
       environment:
         PIPX_HOME: "{{ ansible_user_dir }}/opt/pipx"
         PIPX_BIN_DIR: "{{ ansible_user_dir }}/opt/pipx/bin"
       with_items: "{{ pkg }}"
       vars:
-        pkg: [yq, pre-commit]
+        pkg: [yq, jc, pre-commit]
 
     - name: CARGO
-      community.general.cargo: name={{ pkg }} state=present
+      community.general.cargo: name={{ pkg }}
       environment:
         CARGO_HOME: "{{ ansible_user_dir }}/opt/cargo"
       vars:
         pkg: [ripgrep, fd-find, sd, topgrade, vivid]
 
     - name: Emacs
-      ansible.builtin.package: name={{ pkg }} state=installed
+      ansible.builtin.package: name={{ pkg }}
       become: true
       vars:
         pkg: [emacs]
 
-  vars:
-    state:
-      present:
-        package: installed
-        pip: present
-        pipx: install
-        cargo: present
-...
+    - name: Misc
+      ansible.builtin.package: name={{ pkg }}
+      become: true
+      vars:
+        pkg: [editorconfig]
+
+  module_defaults:
+    ansible.builtin.package:
+      state: installed
+    ansible.builtin.pip:
+      state: present
+    community.general.pipx:
+      state: install
+    community.general.cargo:
+      state: present
