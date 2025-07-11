@@ -1,0 +1,14 @@
+---
+- name: crontab
+  hosts: localhost
+  tasks:
+  - ansible.builtin.cron:
+      state: "present"
+      name: "ansible pull"
+      weekday: "*"
+      minute: "*/5"
+      hour: "*"
+      month: "*"
+      user: root
+      job: "ansible-pull --url=https://github.com/suprsokk1/init.git --checkout=master"
+      cron_file: ansible_pull
