@@ -53,16 +53,15 @@ mapfile ssh_pubkeys  < <(
 
 
 print-ssh-keys() {
-  set - ~/.ssh/*.pub
-  if [ -n "$*"  ]; then
-    cat ~/.ssh/*.pub |
-      xargs --no-run-if-empty -d \\n printf '"%s",' |
-      head -c -1 |
-      sed -Ez 's#.*#[&]#' |
-      sed -Ez 's# "#"#g'
-  else
+  find "$HOME"/.ssh/ -type f -name 'id_*.pub' |
+    while read _ ; do
+      cat ~/.ssh/*.pub |
+        xargs --no-run-if-empty -d \\n printf '"%s",' |
+        head -c -1 |
+        sed -Ez -e 's#.*#[&]#' -e 's# "#"#g'
+      return
+    done
     echo -en '[ ]'
-  fi
 }
 
 mapfile JSON_VARS <<-JSON_VARS_EOF
