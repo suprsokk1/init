@@ -24,7 +24,7 @@ PULL_BRANCH="$(git -C $OLDPWD rev-parse --abbrev-ref HEAD)"
 DISTRO="$ID"
 DISTRO_VERSION="$VERSION_ID"
 uid=$(id -u)
-gid==$(id -g)}
+gid=$(id -g)}
 
 if systemd-detect-virt --container --quiet; then
   VIRT=containers
@@ -53,11 +53,16 @@ mapfile ssh_pubkeys  < <(
 
 
 print-ssh-keys() {
-  cat ~/.ssh/*.pub |
-    xargs --no-run-if-empty -d \\n printf '"%s",' |
-    head -c -1 |
-    sed -Ez 's#.*#[&]#' |
-    sed -Ez 's# "#"#g'
+  set - ~/.ssh/*.pub
+  if [ -n "$*"  ]; then
+    cat ~/.ssh/*.pub |
+      xargs --no-run-if-empty -d \\n printf '"%s",' |
+      head -c -1 |
+      sed -Ez 's#.*#[&]#' |
+      sed -Ez 's# "#"#g'
+  else
+    echo -en '[ ]'
+  fi
 }
 
 mapfile JSON_VARS <<-JSON_VARS_EOF
