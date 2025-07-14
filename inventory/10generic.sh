@@ -34,22 +34,20 @@ else
   VIRT=physical
 fi
 
-mapfile ssh_known_hosts  < <(
-  awk '{print $1}' ~/.ssh/known_hosts |
-    sort | uniq |
-    grep -P -- '(?:10\x2e|172\x2e1[67]|192\x2e168(?!=\x2e122)).*|\x2eno\b' |
-    xargs -r printf ' "%s",' | head -c -1
-)
+if [ -s "$HOME"/.ssh/known_hosts ]; then
+  mapfile ssh_known_hosts  < <(
+    awk '{print $1}' ~/.ssh/known_hosts |
+      sort | uniq |
+      grep -P -- '(?:10\x2e|172\x2e1[67]|192\x2e168(?!=\x2e122)).*|\x2eno\b' |
+      xargs -r printf ' "%s",' | head -c -1
+  )
 
-mapfile ssh_known_hosts_raw  < <(
-  awk '{print $1}' ~/.ssh/known_hosts |
-    sort | uniq |
-    grep -P -- '(?:10\x2e|172\x2e1[67]|192\x2e168(?!=\x2e122)).*|\x2eno\b'
-)
-
-mapfile ssh_pubkeys  < <(
-  cat "$HOME"/.ssh/id_*.pub
-)
+  mapfile ssh_known_hosts_raw  < <(
+    awk '{print $1}' ~/.ssh/known_hosts |
+      sort | uniq |
+      grep -P -- '(?:10\x2e|172\x2e1[67]|192\x2e168(?!=\x2e122)).*|\x2eno\b'
+  )
+fi
 
 
 print-ssh-keys() {
