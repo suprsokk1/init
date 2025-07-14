@@ -6,16 +6,13 @@ dir=/dev/shm/"$(date -I)"
 mkdir -p "$dir" &>/dev/null
 
 pushd "$dir" &>/dev/null || exit
-exec 3<> /dev/tty
 SCRIPT="${OLDPWD}"/"${0}"
-BASH_XTRACEFD=3
 PS4=$'\b${BASH_SOURCE[0]##*/}:${FUNCNAME:+${FUNCNAME[0]}:}rc=${?}:$(tput setaf 230)$(printf "%0*d" 3 ${LINENO})$(tput sgr0): '
 LC_ALL=C
 NO_COLOR=1
 
 if [ -n "$INSIDE_EMACS" -a -z "$@" ]; then
   set - --list
-  #TRACE=true
 fi
 
 : ${HOSTNAME:-$(< /etc/hostname)}
@@ -123,7 +120,6 @@ cat<<HOST_LONGOPTION_EOF
 }
 HOST_LONGOPTION_EOF
       ;;
-
     (--)
   esac
   break
