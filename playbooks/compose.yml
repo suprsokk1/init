@@ -1,0 +1,11 @@
+---
+- name: COMPOSE
+  hosts: vims
+  connection: local
+  gather_facts: false
+  become: false
+  become_user: root
+  no_log: false
+  tasks:
+  - ping:
+...
