@@ -26,21 +26,21 @@ gid=$(id -g)}
 if systemd-detect-virt --container --quiet; then
   VIRT=containers
 elif systemd-detect-virt --vm --quiet; then
-  VIRT=vms
+  VIRT=virtual
 else
   VIRT=physical
 fi
 
 if [ -s "$HOME"/.ssh/known_hosts ]; then
   mapfile ssh_known_hosts  < <(
-    awk '{print $1}' ~/.ssh/known_hosts |
+    /usr/bin/awk '{print $1}' ~/.ssh/known_hosts |
       sort | uniq |
       grep -P -- '(?:10\x2e|172\x2e1[67]|192\x2e168(?!=\x2e122)).*|\x2eno\b' |
       xargs -r printf ' "%s",' | head -c -1
   )
 
   mapfile ssh_known_hosts_raw  < <(
-    awk '{print $1}' ~/.ssh/known_hosts |
+    /usr/bin/awk '{print $1}' ~/.ssh/known_hosts |
       sort | uniq |
       grep -P -- '(?:10\x2e|172\x2e1[67]|192\x2e168(?!=\x2e122)).*|\x2eno\b'
   )
@@ -48,24 +48,26 @@ fi
 
 
 print-ssh-keys() {
-  find "$HOME"/.ssh/ -type f -name 'id_*.pub' |
-    while read _ ; do
-      cat ~/.ssh/*.pub |
-        xargs --no-run-if-empty -d \\n printf '"%s",' |
-        head -c -1 |
-        sed -Ez -e 's#.*#[&]#' -e 's# "#"#g'
-      return
-    done
-    echo -en '[ ]'
+  /usr/bin/find ~/.ssh/ -maxdepth 1 -mindepth 1 -name 'id_*.pub' \
+    -printf \" -exec sed -zE 's#[\n ]+##g' {} \; \
+    -printf '",' |
+    sed -zE 's#,$##;s#.*#[&]#'
 }
+
+
 
 mapfile JSON_VARS <<-JSON_VARS_EOF
 "ansible_user_id": "${USER}",
 "ansible_user_dir": "${HOME}",
+"ansible_connection": "local",
 "pull_url": "${PULL_URL}",
 "pull_branch": "${PULL_BRANCH}",
 "install_packages": ["jq"],
-"ssh_keys": $(print-ssh-keys)
+"ssh_keys": $(print-ssh-keys),
+"galaxy": {
+  "collections": [ ],
+  "roles": [ ]
+}
 JSON_VARS_EOF
 
 
@@ -86,18 +88,26 @@ cat <<-LIST_LONGOPTION_EOF
     "hosts": [ "localhost" ],
     "vars": { ${JSON_VARS[*]} }
   },
-  "${DISTRO}${DISTRO_VERSION}": {
+LIST_LONGOPTION_EOF
+
+print_group() {
+  local group
+  group="$1"
+  cat<<LOOP_LIST_LONGOPTION_EOF
+  "${group}": {
     "hosts": [ "${HOSTNAME}" ],
-    "vars": { ${JSON_VARS[*]}  }
+    "vars": {
+      ${JSON_VARS[*]}
+    }
   },
-  "${DISTRO}": {
-    "hosts": [ "${HOSTNAME}" ],
-    "vars": { ${JSON_VARS[*]}  }
-  },
-  "${VIRT}": {
-    "hosts": [ "${HOSTNAME}" ],
-    "vars": { ${JSON_VARS[*]}  }
-  },
+LOOP_LIST_LONGOPTION_EOF
+}
+
+for group in "${VIRT}" "${DISTRO}" "${DISTRO}${DISTRO_VERSION}"; do
+  print_group "$group"
+done
+
+cat <<LIST_LONGOPTION_EOF
   "_meta": {
     "hostvars": {
       "${HOSTNAME}": { ${JSON_VARS[*]} },
@@ -109,7 +119,7 @@ LIST_LONGOPTION_EOF
       ;;
 
     (--host)
-cat<<HOST_LONGOPTION_EOF
+cat <<HOST_LONGOPTION_EOF
 {
   "_meta": {
     "hostvars": {

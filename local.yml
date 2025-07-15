@@ -1,3 +1,4 @@
 ---
 - import_playbook: playbooks/crontab.yml
+- import_playbook: playbooks/compose.yml
 ...

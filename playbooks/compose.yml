@@ -1,6 +1,6 @@
 ---
 - name: COMPOSE
-  hosts: vims
+  hosts: virtual
   connection: local
   gather_facts: false
   become: false
