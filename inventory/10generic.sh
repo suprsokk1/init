@@ -51,7 +51,7 @@ print-ssh-keys() {
   /usr/bin/find ~/.ssh/ -maxdepth 1 -mindepth 1 -name 'id_*.pub' \
     -printf \" -exec sed -zE 's#[\n ]+##g' {} \; \
     -printf '",' |
-    sed -zE 's#,$##;s#.*#[&]#'
+    sed -zE 's#,$##'
 }
 
 
@@ -63,7 +63,7 @@ mapfile JSON_VARS <<-JSON_VARS_EOF
 "pull_url": "${PULL_URL}",
 "pull_branch": "${PULL_BRANCH}",
 "install_packages": ["jq"],
-"ssh_keys": $(print-ssh-keys),
+"ssh_keys":[ $(print-ssh-keys) ],
 "galaxy": {
   "collections": [ ],
   "roles": [ ]
