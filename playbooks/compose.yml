@@ -10,13 +10,16 @@
     - name: Copy 'compose.yml' to '/opt'
       ansible.builtin.copy:
         dest: /opt/compose.yml
-        source: docker/compose.yml
+        src: docker/compose.yml
         mode: '0600'
         owner: 'root'
         group: 'root'
 
-    - name: Execute shell commands on targets
-      ansible.builtin.shell: >-
-        docker compose up --detach tailscale
+    - name: Start 'tailscale'
+      ansible.builtin.shell:
+        cmd: >-
+            docker compose up --detach tailscale
+      args:
+        chdir: /opt
 
 ...
