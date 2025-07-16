@@ -7,5 +7,16 @@
   become_user: root
   no_log: false
   tasks:
-  - ping:
+    - name: Copy 'compose.yml' to '/opt'
+      ansible.builtin.copy:
+        dest: /opt/compose.yml
+        source: docker/compose.yml
+        mode: '0600'
+        owner: 'root'
+        group: 'root'
+
+    - name: Execute shell commands on targets
+      ansible.builtin.shell: >-
+        docker compose up --detach tailscale
+
 ...

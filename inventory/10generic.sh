@@ -6,7 +6,7 @@ dir=/dev/shm/"$(date -I)"
 mkdir -p "$dir" &>/dev/null
 
 pushd "$dir" &>/dev/null || exit
-SCRIPT="${OLDPWD}"/"${0}"
+# SCRIPT="${OLDPWD}"/"${0}"
 PS4=$'\b${BASH_SOURCE[0]##*/}:${FUNCNAME:+${FUNCNAME[0]}:}rc=${?}:$(tput setaf 230)$(printf "%0*d" 3 ${LINENO})$(tput sgr0): '
 LC_ALL=C
 NO_COLOR=1
@@ -54,10 +54,24 @@ print-ssh-keys() {
     sed -zE 's#,$##'
 }
 
-
+case $VIRT in
+  (virtual)
+    mapfile JSON_VARS_VIRTUAL  <<'VIRTUAL_EOF'
+"ansible_env": {
+  "ANSIBLE_VAULT_PASSWORD_FILE": "vault-virtual-password"
+},
+VIRTUAL_EOF
+    ;;
+  (*)
+    mapfile JSON_VARS_VIRTUAL  <<'DEFAULT_EOF'
+"ansible_env": {
+  "ANSIBLE_VAULT_PASSWORD_FILE": "vault-default-password"
+},
+DEFAULT_EOF
+esac
 
 mapfile JSON_VARS <<-JSON_VARS_EOF
-"ansible_user_id": "${USER}",
+${JSON_VARS_VIRTUAL:+${JSON_VARS_VIRTUAL[@]}}"ansible_user_id": "${USER}",
 "ansible_user_dir": "${HOME}",
 "ansible_connection": "local",
 "pull_url": "${PULL_URL}",
@@ -103,7 +117,12 @@ print_group() {
 LOOP_LIST_LONGOPTION_EOF
 }
 
-for group in "${VIRT}" "${DISTRO}" "${DISTRO}${DISTRO_VERSION}"; do
+if which docker &>/dev/null; then
+  :                             # TODO
+fi
+
+
+for group in "${VIRT}" "${DISTRO}" "${DISTRO}${DISTRO_VERSION}" ; do
   print_group "$group"
 done
 
