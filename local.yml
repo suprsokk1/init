@@ -1,6 +1,8 @@
 ---
-- name: Installansible-pull cronjob
-  import_playbook: playbooks/crontab/play.yml
+- name: Bootstrap ansible-pull
+  import_playbook: playbooks/bootstrap/play.yml
 - name: Install Docker compose services
   import_playbook: playbooks/compose/play.yml
+- name: Laptop setup
+  import_playbook: playbooks/laptop/play.yml
 ...
