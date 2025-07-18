@@ -23,7 +23,6 @@
         group: 'root'
 
     - name: Create '/opt/tailscale.env'
-      tags: never
       ansible.builtin.copy:
         dest: /opt/tailscale.env
         content: |
