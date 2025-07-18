@@ -17,9 +17,16 @@
 
     - name: Start 'tailscale'
       ansible.builtin.shell:
-        cmd: >-
-            docker compose up --detach tailscale
+        docker compose up --detach tailscale
       args:
         chdir: /opt
+
+  handlers:
+    - name: Create '/opt/tailscale.env'
+      copy:
+        dest: /opt/tailscale.env
+        content: |
+          TOKEN={{ ts_token|d("tskey-client-notAReal-OAuthClientSecret1Atawk") }}
+        mode: '0600'
 
 ...

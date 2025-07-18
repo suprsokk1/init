@@ -22,6 +22,4 @@ services:
     depends_on:
     - tailscale-nginx
     network_mode: service:tailscale-nginx
-
-
 ...
