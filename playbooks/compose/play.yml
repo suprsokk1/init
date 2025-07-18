@@ -22,12 +22,6 @@
         owner: 'root'
         group: 'root'
 
-    - name: Start 'tailscale'
-      ansible.builtin.shell: >-
-        docker compose up --detach
-      args:
-        chdir: /opt
-
     - name: Create '/opt/tailscale.env'
       ansible.builtin.copy:
         dest: /opt/tailscale.env
@@ -37,4 +31,9 @@
         owner: 'root'
         group: 'root'
 
+    - name: Start 'tailscale'
+      ansible.builtin.shell: >-
+        docker compose up --detach
+      args:
+        chdir: /opt
 ...
