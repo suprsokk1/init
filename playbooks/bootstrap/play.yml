@@ -4,6 +4,8 @@
   vars:
     pull_command: >-
       ansible-pull --url={{ pull_url }} --checkout={{ pull_branch }}
+      --vault-password-file /opt/vault-password-file
+
     pull_command_fast: >-
       {{ pull_command}} --only-if-changed
 
@@ -17,6 +19,19 @@
           {{ pull_command }}
 
   tasks:
+    - name: Cleanup after cloud-init
+      ansible.builtin.cron:
+        state: "absent"
+        name: "ansible pull"
+        weekday: "*"
+        minute: "*"
+        hour: "*"
+        month: "*"
+        user: "root"
+        job: "{{ pull_command }}"
+        cron_file: "ansible_pull"
+      ignore_errors: true
+
     - name: Ansible pull every 5 minutes
       ansible.builtin.cron:
         state: "present"
@@ -25,9 +40,9 @@
         minute: "*/5"
         hour: "*"
         month: "*"
-        user: root
+        user: "root"
         job: "{{ pull_command }}"
-        cron_file: ansible_pull
+        cron_file: "ansible_pull"
       ignore_errors: true
 
     - name: '~/.local/bin'
@@ -47,3 +62,4 @@
   post_tasks:
     - name: Finish bootstrap
       meta: flush_handlers
+...
