@@ -6,6 +6,13 @@
   become: false
   become_user: root
   no_log: false
+  vars:
+    ts_key_default: >-
+      tskey-client-notAReal-OAuthClientSecret1Atawk
+  handlers:
+    - name: TODO compose handlers
+      meta: noop
+
   tasks:
     - name: Copy 'compose.yml' to '/opt'
       ansible.builtin.copy:
@@ -16,17 +23,18 @@
         group: 'root'
 
     - name: Start 'tailscale'
-      ansible.builtin.shell:
+      ansible.builtin.shell: >-
         docker compose up --detach
       args:
         chdir: /opt
 
-  handlers:
     - name: Create '/opt/tailscale.env'
-      copy:
+      ansible.builtin.copy:
         dest: /opt/tailscale.env
         content: |
-          TOKEN={{ ts_token|d("tskey-client-notAReal-OAuthClientSecret1Atawk") }}
+          TS_AUTHKEY={{ ts_token|d(ts_key_default) }}
         mode: '0600'
+        owner: 'root'
+        group: 'root'
 
 ...

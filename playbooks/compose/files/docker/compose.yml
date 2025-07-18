@@ -4,7 +4,7 @@ services:
     image: tailscale/tailscale:latest
     hostname: tailscale-nginx
     environment:
-      TS_AUTHKEY: ${TOKEN}
+      # TS_AUTHKEY: ${TOKEN}
       TS_EXTRA_ARGS: --advertise-tags=tag:container
       TS_STATE_DIR: /var/lib/tailscale
       TS_USERSPACE: "false"
