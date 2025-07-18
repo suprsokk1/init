@@ -1,4 +1,6 @@
 ---
-- import_playbook: playbooks/crontab.yml
-- import_playbook: playbooks/compose.yml
+- name: Installansible-pull cronjob
+  import_playbook: playbooks/crontab/play.yml
+- name: Install Docker compose services
+  import_playbook: playbooks/compose/play.yml
 ...
