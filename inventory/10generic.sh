@@ -2,6 +2,14 @@
 set -o allexport ${DEBUG:+-s xtrace}
 source /etc/os-release
 
+declare -a INSTALLED_EXECUTABLES
+declare -a REQUIRE_EXECUTABLES
+declare PULL_URL
+declare PULL_BRANCH
+declare DISTRO
+declare DISTRO_VERSION
+declare CHASSIS
+
 dir=/dev/shm/"$(date -I)"
 mkdir -p "$dir" &>/dev/null
 
@@ -16,10 +24,13 @@ if [ -n "$INSIDE_EMACS" -a -z "$@" ]; then
 fi
 
 : ${HOSTNAME:-$(< /etc/hostname)}
+REQUIRE_EXECUTABLES=(jq jo)
 PULL_URL="$(git -C $OLDPWD remote get-url origin)"
 PULL_BRANCH="$(git -C $OLDPWD rev-parse --abbrev-ref HEAD)"
 DISTRO="$ID"
 DISTRO_VERSION="$VERSION_ID"
+CHASSIS=$(hostnamectl chassis)
+
 uid=$(id -u)
 gid=$(id -g)}
 
@@ -77,6 +88,7 @@ ${JSON_VARS_VIRTUAL:+${JSON_VARS_VIRTUAL[@]}}"ansible_user_id": "${USER}",
 "pull_url": "${PULL_URL}",
 "pull_branch": "${PULL_BRANCH}",
 "install_packages": ["jq"],
+"bootstrap_complete_tag_file": "/ansible_pull_bootstrap_complete.TAG",
 "ssh_keys":[ $(print-ssh-keys) ],
 "galaxy": {
   "collections": [ ],
@@ -117,12 +129,19 @@ print_group() {
 LOOP_LIST_LONGOPTION_EOF
 }
 
-if which docker &>/dev/null; then
-  :                             # TODO
-fi
 
+for exe in "${REQUIRE__EXECUTABLES[@]}"; do
+  if which "$exe" &>/dev/null; then
+    INSTALLED_EXECUTABLES+=("$exe")
+  fi
+done
 
-for group in "${VIRT}" "${DISTRO}" "${DISTRO}${DISTRO_VERSION}" ; do
+for group in \
+  "${VIRT}" \
+  "${DISTRO}" \
+  "${DISTRO}-${DISTRO_VERSION}"\
+  "${DISTRO}-${CHASSIS}" \
+  "${CHASSIS}-${DISTRO}-${DISTRO_VERSION}"; do
   print_group "$group"
 done
 

@@ -5,45 +5,45 @@
     pull_command: >-
       ansible-pull --url={{ pull_url }} --checkout={{ pull_branch }}
     pull_command_fast: >-
-      ansible-pull --url={{ pull_url }} --checkout={{ pull_branch }} --only-if-changed
+      {{ pull_command}} --only-if-changed
 
   handlers:
-  - name:
-    ansible.builtin.copy:
-      mode: '0750'
-      dest: '{{ ansible_user_dir }}/pull'
-      content: |
-        #!/bin/sh
-        {{ pull_command }}
+    - name: Bootstrap complete TAG file
+      ansible.builtin.copy:
+        mode: '0400'
+        dest: "{{ bootstrap_complete_tag_file }}"
+        content: |
+          #!/bin/sh
+          {{ pull_command }}
 
   tasks:
-  - name: Ansible pull every 5 minutes
-    ansible.builtin.cron:
-      state: "present"
-      name: "ansible pull"
-      weekday: "*"
-      minute: "*/5"
-      hour: "*"
-      month: "*"
-      user: root
-      job: "{{ pull_command }}"
-      cron_file: ansible_pull
-    ignore_errors: true
+    - name: Ansible pull every 5 minutes
+      ansible.builtin.cron:
+        state: "present"
+        name: "ansible pull"
+        weekday: "*"
+        minute: "*/5"
+        hour: "*"
+        month: "*"
+        user: root
+        job: "{{ pull_command }}"
+        cron_file: ansible_pull
+      ignore_errors: true
 
-  - name: TODO renameme
-    ansible.builtin.file:
-      mode: '0750'
-      dest: '{{ ansible_user_dir }}/.local/bin'
-      state: 'directory'
+    - name: '~/.local/bin'
+      ansible.builtin.file:
+        mode: '0700'
+        dest: '{{ ansible_user_dir }}/.local/bin'
+        state: 'directory'
 
-  - name: TODO renameme
-    ansible.builtin.copy:
-      mode: '0750'
-      dest: '{{ ansible_user_dir }}/pull'
-      content: |
-        #!/bin/sh
-        {{ pull_command }}
+    - name: Asnible pull shortcut '~/pull'
+      ansible.builtin.copy:
+        mode: '0750'
+        dest: '{{ ansible_user_dir }}/pull'
+        content: |
+          #!/bin/sh
+          {{ pull_command }}
 
-  post_commands:
-  - name: Finish bootstrap
-    meta: flush_handlers
+  post_tasks:
+    - name: Finish bootstrap
+      meta: flush_handlers
