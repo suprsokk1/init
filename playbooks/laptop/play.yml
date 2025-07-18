@@ -1,0 +1,12 @@
+---
+- name: LAPTOP
+  hosts:
+  connection: local
+  gather_facts: false
+  become: false
+  become_user: root
+  no_log: false
+  tasks:
+    - name: TODO laptop
+      meta: noop
+...
