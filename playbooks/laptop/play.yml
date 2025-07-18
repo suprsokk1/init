@@ -1,6 +1,6 @@
 ---
 - name: LAPTOP
-  hosts:
+  hosts: 'laptop*'
   connection: local
   gather_facts: false
   become: false
