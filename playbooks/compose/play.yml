@@ -6,9 +6,6 @@
   become: false
   become_user: root
   no_log: false
-  vars:
-    ts_key_default: >-
-      tskey-client-notAReal-OAuthClientSecret1Atawk
   handlers:
     - name: TODO compose handlers
       meta: noop
@@ -17,23 +14,61 @@
     - name: Copy 'compose.yml' to '/opt'
       ansible.builtin.copy:
         dest: /opt/compose.yml
-        src: docker/compose.yml
+        # src: docker/compose.yml
         mode: '0600'
         owner: 'root'
         group: 'root'
+        content: >-
+          {{ composefile | to_yaml }}
 
     - name: Create '/opt/tailscale.env'
       ansible.builtin.copy:
         dest: /opt/tailscale.env
         content: |
-          TS_AUTHKEY={{ ts_token|d(ts_key_default) }}
+          TS_AUTHKEY={{ ts_token | d(ts_key_default) }}
         mode: '0600'
         owner: 'root'
         group: 'root'
+      vars:
+        ts_token: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          62633731373334366231323162363631663532376531326539323063326162326638323135353566
+          3065616334653635323930346566323236346338303831330a323463643832316232613064393630
+          65356333633733326639333965313862633738643033346636616133613136643238643365376466
+          6534643038353237330a386535633763383161636531623863313038386162643634346439613830
+          32396361373233613838316666653761306430366361336639363033656135663366643631356464
+          30373966613061333862366462366134373234356562666431326433353562303635366231656236
+          303132303762663761316561396633323031
 
     - name: Start 'tailscale'
       ansible.builtin.shell: >-
         docker compose up --detach
       args:
         chdir: /opt
+  vars:
+    ts_key_default: >-
+      tskey-client-notAReal-OAuthClientSecret1Atawk
+    composefile:
+      services:
+        tailscale-nginx:
+          image: tailscale/tailscale:latest
+          hostname: "{{ ansible_host }}"
+          environment:
+            TS_STATE_DIR: /var/lib/tailscale
+            TS_USERSPACE: "false"
+          volumes:
+            - /opt/tailscale-nginx/state:/var/lib/tailscale
+          devices:
+            - /dev/net/tun:/dev/net/tun
+          cap_add:
+            - net_admin
+          restart: unless-stopped
+          env_file:
+            - tailscale.env
+        nginx:
+          image: nginx
+          depends_on:
+            - tailscale-nginx
+          network_mode: service:tailscale-nginx
+
 ...

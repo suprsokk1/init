@@ -9,6 +9,7 @@ declare PULL_BRANCH
 declare DISTRO
 declare DISTRO_VERSION
 declare CHASSIS
+declare ACCESS
 
 dir=/dev/shm/"$(date -I)"
 mkdir -p "$dir" &>/dev/null
@@ -32,7 +33,7 @@ DISTRO_VERSION="$VERSION_ID"
 CHASSIS=$(hostnamectl chassis)
 
 uid=$(id -u)
-gid=$(id -g)}
+gid=$(id -g)
 
 if systemd-detect-virt --container --quiet; then
   VIRT=containers
@@ -88,7 +89,7 @@ ${JSON_VARS_VIRTUAL:+${JSON_VARS_VIRTUAL[@]}}"ansible_user_id": "${USER}",
 "pull_url": "${PULL_URL}",
 "pull_branch": "${PULL_BRANCH}",
 "install_packages": ["jq"],
-"bootstrap_complete_tag_file": "/ansible_pull_bootstrap_complete.TAG",
+"bootstrap_complete_tag_file": "/ANSIBLE_PULL_BOOTSTRAP_COMPLETE.TAG",
 "ssh_keys":[ $(print-ssh-keys) ],
 "galaxy": {
   "collections": [ ],
@@ -98,9 +99,9 @@ JSON_VARS_EOF
 
 
 while [ -n "$*" ]; do
-  case "$1" in
-    (--list)
-cat <<-LIST_LONGOPTION_EOF
+case "$1" in
+  (--list)
+    cat <<-LIST_LONGOPTION_EOF
 {
  "all": {
     "children": [
@@ -116,10 +117,10 @@ cat <<-LIST_LONGOPTION_EOF
   },
 LIST_LONGOPTION_EOF
 
-print_group() {
-  local group
-  group="$1"
-  cat<<LOOP_LIST_LONGOPTION_EOF
+    print_group() {
+      local group
+      group="$1"
+      cat<<LOOP_LIST_LONGOPTION_EOF
   "${group}": {
     "hosts": [ "${HOSTNAME}" ],
     "vars": {
@@ -127,25 +128,43 @@ print_group() {
     }
   },
 LOOP_LIST_LONGOPTION_EOF
-}
+    }
 
 
-for exe in "${REQUIRE__EXECUTABLES[@]}"; do
-  if which "$exe" &>/dev/null; then
-    INSTALLED_EXECUTABLES+=("$exe")
-  fi
-done
+    for exe in "${REQUIRE__EXECUTABLES[@]}"; do
+    if which "$exe" &>/dev/null; then
+      INSTALLED_EXECUTABLES+=("$exe")
+    fi
+    done
 
-for group in \
-  "${VIRT}" \
-  "${DISTRO}" \
-  "${DISTRO}-${DISTRO_VERSION}"\
-  "${DISTRO}-${CHASSIS}" \
-  "${CHASSIS}-${DISTRO}-${DISTRO_VERSION}"; do
-  print_group "$group"
-done
+    ACCESS="user"
+    case $(command /usr/bin/id  -u) in
+      ( 0 )
+      ACCESS="root"
+      ;;
 
-cat <<LIST_LONGOPTION_EOF
+      ( * )
+      if [ -n "${SUDO_USER:-}"  ]; then
+        ACCESS="elevated"
+      fi
+    esac
+
+    for group in \
+      "${VIRT}" \
+      "${ACCESS}-${VIRT}" \
+      "${DISTRO}" \
+      "${ACCESS}-${DISTRO}" \
+      "${DISTRO}-${DISTRO_VERSION}" \
+      "${ACCESS}-${DISTRO}-${DISTRO_VERSION}"\
+      "${DISTRO}-${CHASSIS}" \
+      "${ACCESS}-${DISTRO}-${CHASSIS}" \
+      "${CHASSIS}-${DISTRO}-${DISTRO_VERSION}" \
+      "${ACCESS}-${CHASSIS}-${DISTRO}-${DISTRO_VERSION}"
+    do
+      print_group "$group"
+    done
+
+    cat <<LIST_LONGOPTION_EOF
   "_meta": {
     "hostvars": {
       "${HOSTNAME}": { ${JSON_VARS[*]} },
@@ -154,10 +173,10 @@ cat <<LIST_LONGOPTION_EOF
   }
 }
 LIST_LONGOPTION_EOF
-      ;;
+    ;;
 
-    (--host)
-cat <<HOST_LONGOPTION_EOF
+  (--host)
+    cat <<HOST_LONGOPTION_EOF
 {
   "_meta": {
     "hostvars": {
@@ -167,8 +186,8 @@ cat <<HOST_LONGOPTION_EOF
   }
 }
 HOST_LONGOPTION_EOF
-      ;;
-    (--)
-  esac
-  break
+    ;;
+  (--)
+esac
+break
 done
