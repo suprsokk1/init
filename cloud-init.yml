@@ -3,9 +3,9 @@
   connection: 'local'
   gather_facts: false
   tasks:
-    - name: 'Install Galaxy collections and roles'
+    - name: 'Install Galaxy collections'
       ansible.builtin.shell: |
-        ansible-galaxy install --role-file=requirements.yml
+        ansible-galaxy collection install --requirements-file=requirements.yml
 
     - name: "Firstrun cleanup"
       ansible.builtin.file:
