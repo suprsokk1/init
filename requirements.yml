@@ -1,0 +1,10 @@
+---
+roles:
+- name: cargo
+  src: ssh://git@github.com/suprsokk1/ansible-role-cargo.git
+  version: master
+  scm: git
+collections:
+- name: community.general
+- name: community.digitalocean
+...

@@ -1,0 +1,8 @@
+---
+- hosts: localhost
+  connection: local
+  tasks:
+    - name: 'Install Galaxy collections and roles'
+      shell: >-
+        ansible-galaxy install --role-file=requirements.yml
+...
