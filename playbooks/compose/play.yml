@@ -1,6 +1,6 @@
 ---
 - name: COMPOSE
-  hosts: virtual
+  hosts: 'virtual'
   connection: local
   gather_facts: false
   become: false
@@ -11,7 +11,7 @@
       meta: noop
 
   tasks:
-    - name: Copy 'compose.yml' to '/opt'
+    - name: Create 'compose.yml' to '/opt'
       ansible.builtin.copy:
         dest: /opt/compose.yml
         # src: docker/compose.yml
@@ -29,8 +29,27 @@
         mode: '0600'
         owner: 'root'
         group: 'root'
-      vars:
-        ts_token: !vault |
+
+    - name: Start 'tailscale'
+      ansible.builtin.shell: >-
+        docker compose up --detach
+      args:
+        chdir: /opt
+
+    - name: "Install 'doctl'"
+      ansible.builtin.shell: >-
+        snap install doctl &>/dev/null
+      args:
+        creates: /snap/bin/doctl
+
+    - name: "Install 'doctl'"
+      ansible.builtin.shell: >-
+        doctl auth init --access-token "{{ do_api_token }}"
+      args:
+        creates: /root/.config/doctl/config.yaml
+
+  vars:
+    ts_token: !vault |
           $ANSIBLE_VAULT;1.1;AES256
           62633731373334366231323162363631663532376531326539323063326162326638323135353566
           3065616334653635323930346566323236346338303831330a323463643832316232613064393630
@@ -40,35 +59,92 @@
           30373966613061333862366462366134373234356562666431326433353562303635366231656236
           303132303762663761316561396633323031
 
-    - name: Start 'tailscale'
-      ansible.builtin.shell: >-
-        docker compose up --detach
-      args:
-        chdir: /opt
-  vars:
-    ts_key_default: >-
-      tskey-client-notAReal-OAuthClientSecret1Atawk
+    do_api_token: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          64336161363130343063633534623036303037303931363935623638626135356233326131653966
+          6462386137373535623132633961373339666563363737660a393261613965396435373339663565
+          39616538633538626636653966386232303530306337663836343836383636316134363562363439
+          3863303930363962640a383539346137366630353331353039373435373332623534643863393533
+          64653364313339613333656238346163383835306161323462633761663263646665663830636364
+          65376633313537313862353634626638386337653037303539646432326431393239353561373235
+          34646539313731373138396663356635653066333031313938336239336135623532643035313236
+          36336664306235353236
+
     composefile:
       services:
+        traefik:
+          image: "traefik:v3.5"
+          container_name: "traefik"
+          command:
+            #- "--log.level=DEBUG"
+            - "--api.insecure=true"
+            - "--providers.docker=true"
+            - "--providers.docker.exposedbydefault=false"
+            - "--entryPoints.web.address=:80"
+          ports:
+            - "80:80"
+            - "8080:8080"
+          volumes: &DOCKER_HOST
+            - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+        whoami:
+          image: "traefik/whoami"
+          container_name: "simple-service"
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+            - "traefik.http.routers.whoami.entrypoints=web"
+
         tailscale-nginx:
-          image: tailscale/tailscale:latest
+          image: "tailscale/tailscale:latest"
           hostname: "{{ ansible_host }}"
           environment:
-            TS_STATE_DIR: /var/lib/tailscale
+            TS_STATE_DIR: "/var/lib/tailscale"
             TS_USERSPACE: "false"
-          volumes:
-            - /opt/tailscale-nginx/state:/var/lib/tailscale
           devices:
-            - /dev/net/tun:/dev/net/tun
+            - "/dev/net/tun:/dev/net/tun"
           cap_add:
-            - net_admin
-          restart: unless-stopped
+            - "net_admin"
+          restart: "unless-stopped"
           env_file:
-            - tailscale.env
-        nginx:
-          image: nginx
-          depends_on:
-            - tailscale-nginx
-          network_mode: service:tailscale-nginx
+            - "tailscale.env"
+          volumes:
+            - "/opt/tailscale-nginx/state:/var/lib/tailscale"
 
+        nginx:
+          image: "nginx"
+          depends_on:
+            - "tailscale-nginx"
+          network_mode: "service:tailscale-nginx"
+
+        autoheal:
+          image: "willfarrell/autoheal"
+          environment:
+            AUTOHEAL_CONTAINER_LABEL: "all"
+            AUTOHEAL_INTERVAL: 5
+            AUTOHEAL_START_PERIOD: 0
+            AUTOHEAL_DEFAULT_STOP_TIMEOUT: 10
+            DOCKER_SOCK: "/var/run/docker.sock"
+            CURL_TIMEOUT: 30
+          privileged: true
+          restart: "always"
+          volumes: 
+            - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+- name: UFW
+  hosts: 'ubuntu-vm'
+  connection: local
+  gather_facts: false
+  become: false
+  become_user: root
+  no_log: false
+  tasks:
+    - name: Open HTTP and HTTPS
+      loop:
+        - 80
+        - 443
+      community.general.ufw:
+        rule: allow
+        port: '{{ item }}'
+        proto: tcp
 ...
