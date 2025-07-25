@@ -29,7 +29,7 @@ REQUIRE_EXECUTABLES=(jq jo)
 PULL_URL="$(git -C $OLDPWD remote get-url origin)"
 PULL_BRANCH="$(git -C $OLDPWD rev-parse --abbrev-ref HEAD)"
 DISTRO="$ID"
-DISTRO_VERSION="$VERSION_ID"
+DISTRO_VERSION="${VERSION_ID//./-}"
 CHASSIS=$(hostnamectl chassis)
 
 uid=$(id -u)
