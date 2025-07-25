@@ -1,8 +1,21 @@
 ---
-- hosts: localhost
-  connection: local
+- hosts: 'localhost'
+  connection: 'local'
+  gather_facts: false
   tasks:
     - name: 'Install Galaxy collections and roles'
-      shell: >-
+      ansible.builtin.shell: |
         ansible-galaxy install --role-file=requirements.yml
+
+    - name: "Firstrun cleanup"
+      ansible.builtin.file:
+        dest: "/etc/cron.d/ansible_pull_firstrun"
+        state: 'absent'
+
+    - name: "Firstrun cleanup"
+      ansible.builtin.copy:
+        dest: "/etc/cron.d/ansible_pull"
+        content: |
+          # ansible-pull {{ pull_url }} {{ pull_branch }}
+          * * * * * root ansible-pull --url={{ pull_url }} --checkout={{ pull_branch }}
 ...
