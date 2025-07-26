@@ -42,9 +42,10 @@
       args:
         creates: '/snap/bin/doctl'
 
-    - name: "Create '/root/.config'"
+    - name: "Create '/root/.config/doctl'"
       ansible.builtin.file:
-        dest: '/root/.config'
+        dest: '/root/.config/doctl'
+        recurse: true
         state: 'directory'
         mode: '0700'
         owner: 'root'
