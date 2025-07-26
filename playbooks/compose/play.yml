@@ -21,32 +21,41 @@
         content: >-
           {{ composefile | to_yaml }}
 
-    - name: Create '/opt/tailscale.env'
+    - name: "Create '/opt/tailscale.env'"
       ansible.builtin.copy:
-        dest: /opt/tailscale.env
+        dest: '/opt/tailscale.env'
         content: |
           TS_AUTHKEY={{ ts_token | d(ts_key_default) }}
         mode: '0600'
         owner: 'root'
         group: 'root'
 
-    - name: Start 'tailscale'
+    - name: "Start 'tailscale'"
       ansible.builtin.shell: >-
         docker compose up --detach
       args:
-        chdir: /opt
+        chdir: '/opt'
 
     - name: "Install 'doctl'"
       ansible.builtin.shell: >-
         snap install doctl &>/dev/null
       args:
-        creates: /snap/bin/doctl
+        creates: '/snap/bin/doctl'
+
+    - name: "Create '/root/.config'"
+      ansible.builtin.file:
+        dest: '/root/.config'
+        state: 'directory'
+        mode: '0700'
+        owner: 'root'
+        group: 'root'
 
     - name: "Install 'doctl'"
+      no_log: true
       ansible.builtin.shell: >-
         doctl auth init --access-token "{{ do_api_token }}"
       args:
-        creates: /root/.config/doctl/config.yaml
+        creates: '/root/.config/doctl/config.yaml'
 
   vars:
     ts_token: !vault |
