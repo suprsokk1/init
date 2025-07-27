@@ -1,38 +1,32 @@
 ---
 - name: BOOTSTRAP
-  hosts: localhost
-  vars:
-    pull_command: >-
-      ansible-pull --url={{ pull_url }} --checkout={{ pull_branch }}
-      --vault-password-file /opt/vault-password-file
-
-    pull_command_fast: >-
-      {{ pull_command}} --only-if-changed
-
-  handlers:
+  hosts: 'new'
+  user: 'root'
+  post_tasks:
     - name: Bootstrap complete TAG file
       ansible.builtin.copy:
         mode: '0400'
         dest: "{{ bootstrap_complete_tag_file }}"
-        content: |
-          #!/bin/sh
-          {{ pull_command }}
+        content: '.'
 
   tasks:
-    - name: Cleanup after cloud-init
+    - name: "Cleanup after cloud-init"
+      loop:
+        - ' '
+        - '-'
       ansible.builtin.cron:
         state: "absent"
-        name: "ansible pull"
+        name: "ansible{{ item }}pull"
         weekday: "*"
         minute: "*"
         hour: "*"
         month: "*"
         user: "root"
-        job: "{{ pull_command }}"
+        job: "{{ pull_command_base }}"
         cron_file: "ansible_pull"
       ignore_errors: true
 
-    - name: Ansible pull every 5 minutes
+    - name: "Ansible pull every 5 minutes"
       ansible.builtin.cron:
         state: "present"
         name: "ansible pull"
@@ -41,25 +35,105 @@
         hour: "*"
         month: "*"
         user: "root"
-        job: "{{ pull_command }}"
+        job: "{{ pull_command_base }}"
         cron_file: "ansible_pull"
-      ignore_errors: true
+      ignore_errors: false
 
-    - name: '~/.local/bin'
+    - name: "~/.local/bin"
       ansible.builtin.file:
         mode: '0700'
         dest: '{{ ansible_user_dir }}/.local/bin'
         state: 'directory'
 
-    - name: Asnible pull shortcut '~/pull'
+    - name: "Create 'requirements.yml'"
+      ignore_errors: true
+      ansible.builtin.file:
+        mode: '0644'
+        dest: '/opt/ansible-pull/'
+        content: |
+          {{ requirements_yml }}
+
+    - name: "Ansible pull shortcut '~/pull'"
+      ignore_errors: true
       ansible.builtin.copy:
         mode: '0750'
         dest: '{{ ansible_user_dir }}/pull'
         content: |
           #!/bin/sh
-          {{ pull_command }}
+          {{ pull_command_base }}
 
-  post_tasks:
-    - name: Finish bootstrap
-      meta: flush_handlers
+    - name: "Copy 'requirements.yml'"
+      ignore_errors: true
+      when: bootstrap_requirements_yml is defined
+      ansible.builtin.copy:
+        mode: '0644'
+        dest: '/opt/ansible-pull/requirements.yml'
+        content: |
+          {{ bootstrap_requirements_yml is defined | to_yaml }}
+
+    - name: "Install 'pkl'"
+      ignore_errors: true
+      ansible.builtin.get_url:
+        url: 'https://github.com/apple/pkl/releases/download/0.28.1/pkl-linux-amd64'
+        dest: '/usr/bin/pkl'
+        mode: 'u=rwx,go=rx'
+        owner: 'root'
+        group: 'root'
+        checksum: 'sha512:d0c8aefc45ae0a8b72e34e2eaa0dbccb7015c828a3da95db6c8417a0138832d59877c3a9fd4fd8b146526991e1dbd6c533c69f1cd45a55ae1593db2fe7b3d5e1'
+
+    - name: "Install 'doctl'"
+      ansible.builtin.shell: >-
+        snap install doctl &>/dev/null
+      args:
+        creates: '/snap/bin/doctl'
+
+    - name: "Create '/root/.config/doctl'"
+      ansible.builtin.file:
+        dest: '/root/.config/doctl'
+        recurse: true
+        state: 'directory'
+        mode: '0700'
+        owner: 'root'
+        group: 'root'
+
+    - name: "Install 'doctl'"
+      no_log: true
+      ansible.builtin.shell: >-
+        doctl auth init --access-token "{{ do_api_token }}"
+      args:
+        creates: '/root/.config/doctl/config.yaml'
+
+  vars:
+    pull_command_base: >-
+      ansible-pull
+      --url={{ pull_url }}
+      --checkout={{ pull_branch }}
+      --vault-password-file /opt/vault-password-file
+
+    pull_command_default: >-
+      {{ pull_command_base }} --only-if-changed
+
+    pull_command_fast_full: >-
+      {{ pull_command_base }}
+
+    requirements_yml:
+      roles:
+        - name: 'Cargo'
+          src: 'ssh://git@github.com/suprsokk1/ansible-role-cargo.git'
+          version: master
+          scm: git
+      collections:
+        - name: 'community.general'
+        - name: 'community.digitalocean'
+
+    ts-admin-access-token: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      61656631616131373632356465653032333830636238313538653266623836376539666361313931
+      6136326632366339303630666436323363326435626334650a366465363435306139343039383061
+      63333934333730356538333538356563393263643230353036333431383333393430613364643038
+      6164346339663839660a386365663834353263353735353664623337616166373533653765303463
+      37356633366635643736646532653565616133383933323538646530336462666438626237363835
+      64666531323965313230346131386261613533353435363062303133366431343438633736336633
+      393031346339623962363864653862633135
+
 ...
