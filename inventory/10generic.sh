@@ -99,6 +99,7 @@ read -r _ _ _ FACT_PULL_USER FACT_PULL_REPO _ < <(
 read -r FACT_PULL_URL < <(command git -C $OLDPWD remote get-url origin)
 read -r FACT_PULL_BRANCH < <(command git -C $OLDPWD rev-parse --abbrev-ref HEAD)
 read -r FACT_CHASSIS < <(command hostnamectl chassis)
+
 FACT_BOOTSTRAP_COMPLETE_TAG_FILE="/ANSIBLE_FACT_PULL_FACT_BOOTSTRAP_COMPLETE.TAG"
 FACT_BOOTSTRAP_COMPLETE=false
 
@@ -116,8 +117,22 @@ if ! [ -s JSON_WHOAMI ]; then
     -o JSON_WHOAMI
 fi
 
+if ! [ -s FACT_PUBLIC_IP ]; then
+  command curl --retry 3 -sL ifconfig.net/ip -o FACT_PUBLIC_IP
+fi
+
+if ! [ -s FACT_FQDN ]; then
+  command xargs -r -a FACT_PUBLIC_IP dig +short -x | command sed -E 's#\x2e$##' > FACT_FQDN &
+fi
+
 if command -v doctl &>/dev/null ; then
   if command doctl compute droplet list &>/dev/null; then
+    if ! [ -s TXT_DO_API_TOKEN ]; then
+      if [ -s "$HOME"/.config/doctl/config.yaml ]; then
+        command sed -E '/access-token:./!d;s###' "$HOME"/.config/doctl/config.yaml | command xargs -r > TXT_DO_API_TOKEN
+      fi
+    fi
+
     if ! [ -s TXT_DO_DOMAIN_LIST ] ; then
       command doctl compute domain list --format Domain --no-header > TXT_DO_DOMAIN_LIST
     fi
@@ -135,6 +150,7 @@ if command -v doctl &>/dev/null ; then
     if ! [ -s JSON_DO_DOMAIN_LIST ] ; then
       command doctl compute domain list --output=json > JSON_DO_DOMAIN_LIST &
     fi
+
   fi
 fi
 
@@ -151,7 +167,7 @@ fi
 if [ -s "$HOME"/.ssh/known_hosts ]; then
   mapfile ssh_known_hosts  < <(
     command /usr/bin/awk '{print $1}' ~/.ssh/known_hosts |
-      command  | command uniq |
+      command sort | command uniq |
       command grep -P -- '(?:10\x2e|172\x2e1[67]|192\x2e168(?!=\x2e122)).*|\x2eno\b' |
       command xargs -r printf ' "%s",' |
       command head -c -1
@@ -208,17 +224,17 @@ print_json_mapping() {
 
 case "$VIRT" in                 # FIXME
   ( virtual )
-    mapfile JSON_VARS_VIRTUAL  <<'VIRTUAL_EOF'
+    mapfile JSON_VARS_VIRTUAL  <<VIRTUAL_EOF
 "ansible_env": {
-  "ANSIBLE_VAULT_PASSWORD_FILE": "vault-virtual-password"
+$(if [ -s TXT_DO_API_TOKEN ]; then printf '"%s": "%s",' DO_API_TOKEN $(command xargs -a TXT_DO_API_TOKEN); fi)"ANSIBLE_VAULT_PASSWORD_FILE": "vault-virtual-password"
 },
 VIRTUAL_EOF
     ;;
 
   ( * )
-    mapfile JSON_VARS_VIRTUAL  <<'DEFAULT_EOF'
+    mapfile JSON_VARS_VIRTUAL  <<DEFAULT_EOF
 "ansible_env": {
-  "ANSIBLE_VAULT_PASSWORD_FILE": "vault-default-password"
+$(if [ -s TXT_DO_API_TOKEN ]; then printf '"%s": "%s",' DO_API_TOKEN $(command xargs -a TXT_DO_API_TOKEN); fi)"ANSIBLE_VAULT_PASSWORD_FILE": "vault-default-password"
 },
 DEFAULT_EOF
 esac
@@ -246,6 +262,8 @@ ${JSON_VARS_VIRTUAL:+${JSON_VARS_VIRTUAL[@]}}"ansible_user_id": "${USER}",
 "pull_repo": "${FACT_PULL_REPO}",
 "pull_url": "${FACT_PULL_URL}",
 "pull_branch": "${FACT_PULL_BRANCH}",
+$(if [ -s FACT_PUBLIC_IP ]; then printf '"%s": "%s",' public_ip $(command xargs -a FACT_PUBLIC_IP); fi)
+$(if [ -s FACT_FQDN ]; then printf '"%s": "%s",' fqdn $(command xargs -a FACT_FQDN); fi)
 "bootstrap_complete_tag_file": "${FACT_BOOTSTRAP_COMPLETE_TAG_FILE}",
 "install_packages": ["jq"],
 "ifconfig.net": $(if true;then command cat JSON_WHOAMI; else echo '[]'; fi),
