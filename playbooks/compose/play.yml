@@ -31,8 +31,7 @@
         owner: 'root'
         group: 'root'
 
-    - name: Copy files to remote locations
-      loop: "{{ do_hosts|d([ansible_host]) }}"
+    - name: "Traefik whoami"
       copy:
         mode: '0600'
         owner: 'root'
@@ -43,10 +42,10 @@
         _services:
           whoami:
             image: "traefik/whoami"
-            container_name: "whoami-{{ item }}"
+            container_name: "whoami-{{ ansible_host }}"
             labels:
               - "traefik.enable=true"
-              - "traefik.http.routers.whoami.rule=Host(`{{ item }}`)"
+              - "traefik.http.routers.whoami.rule=Host(`{{ ansible_host }}`)"
               - "traefik.http.routers.whoami.entrypoints=web"
 
     - name: "Start 'tailscale'"
