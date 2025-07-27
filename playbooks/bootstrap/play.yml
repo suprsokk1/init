@@ -99,7 +99,7 @@
     - name: "Install 'doctl'"
       no_log: true
       ansible.builtin.shell: >-
-        doctl auth init --access-token "{{  }}"
+        doctl auth init --access-token "{{ do_admin_access_token }}"
       args:
         creates: '/root/.config/doctl/config.yaml'
 
