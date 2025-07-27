@@ -126,7 +126,7 @@
         - name: 'community.general'
         - name: 'community.digitalocean'
 
-    do-admin-access-token: !vault |
+    do_admin_access_token: !vault |
       $ANSIBLE_VAULT;1.1;AES256
       35626232366630386433616136643630343831633331343761656436303132303263613163376535
       3431303339376363366639333962643137613932326331360a343333636365633330613766336632
