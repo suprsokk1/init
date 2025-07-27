@@ -36,17 +36,19 @@
         mode: '0600'
         owner: 'root'
         group: 'root'
+        dest: '/opt/compose-whoami-{{ ansible_host }}.yml'
         content: |
-          {{ _services | to_yaml }}
+          {{ _document | to_yaml }}
       vars:
-        _services:
-          whoami:
-            image: "traefik/whoami"
-            container_name: "whoami-{{ ansible_host }}"
-            labels:
-              - "traefik.enable=true"
-              - "traefik.http.routers.whoami.rule=Host(`{{ ansible_host }}`)"
-              - "traefik.http.routers.whoami.entrypoints=web"
+        _document:
+          services:
+            whoami:
+              image: "traefik/whoami"
+              container_name: "whoami-{{ ansible_host }}"
+              labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.whoami.rule=Host(`{{ ansible_host }}`)"
+                - "traefik.http.routers.whoami.entrypoints=web"
 
     - name: "Start 'tailscale'"
       ansible.builtin.shell: >-
