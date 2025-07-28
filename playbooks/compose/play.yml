@@ -79,17 +79,24 @@
           ports:
             - "80:80"
             - "443:443"
-            - "8080:8080"
+            # - "8080:8080"
           volumes: &DOCKER_HOST
             - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
         whoami:
           image: "traefik/whoami"
-          container_name: "whoami-{{ host_or_fqdn }}"
+          container_name: "{{ host_or_fqdn }}"
+          expose:
+            - "80"
           labels:
+            # - "traefik.backend="
+            - "traefik.docker.network=web"
+            - "traefik.frontend.rule=Host:{{ host_or_fqdn }}"
             - "traefik.enable=true"
-            - "traefik.http.routers.whoami.rule=Host(`{{ host_or_fqdn }}`)"
-            - "traefik.http.routers.whoami.entrypoints=web"
+            - "traefik.port=80"
+            # - "traefik.enable=true"
+            # - "traefik.http.routers.whoami.rule=Host(`{{ host_or_fqdn }}`)"
+            # - "traefik.http.routers.whoami.entrypoints=web"
 
         # whoami-hooks:
         #   image: "traefik/whoami"
