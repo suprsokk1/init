@@ -54,57 +54,56 @@
         - "--acme.onHostRule=true"
         - "--acme.storage=acme.json"
 
+    _:
+      resolver:
+        name: "frontend"
+      network:
+        name: "frontend"
+      service:
+        name: "api@internal"
+
     composefile:
+      networks:
+        frontend:
+          external: false
+
       services:
         traefik:
           # <<: *HTTP_CHALLENGE
           image: "traefik:v3.5"
           container_name: "traefik"
           command:
-            - "--debug=false"
-            - "--logLevel=ERROR"
-            - "--defaultentrypoints=https,http"
-            - "--entryPoints=Name:http Address::80 Redirect.EntryPoint:https"
-            - "--entryPoints=Name:https Address::443 TLS"
-            - "--retry"
-            - "--docker.endpoint=unix:///var/run/docker.sock"
-            - "--docker.domain={{ host_or_fqdn }}"
-            - "--docker.watch=true"
-            - "--docker.exposedbydefault=false"
-            - "--acme.email={{ acme_challenge_email }}"
-            - "--acme.storage=acme.json"
-            - "--acme.entryPoint=https"
-            - "--acme.onHostRule=true"
-            - "--acme.httpchallenge.entrypoint=http"
+            - "--entrypoints.web.address=:80"
+            - "--entrypoints.websecure.address=:443"
+            - "--providers.docker=true"
+            - "--providers.docker.network={{ _.network.name }}"
+            - "--api.dashboard=true"
+            - "--log.level=INFO"
+            - "--certificatesresolvers.{{ _.resolver.name }}.acme.tlschallenge=true"
+            - "--certificatesresolvers.{{ _.resolver.name }}.acme.email={{ acme_challenge_email }}"
+            - "--certificatesresolvers.{{ _.resolver.name }}.acme.storage=/acme.json"
           ports:
             - "80:80"
             - "443:443"
             # - "8080:8080"
           volumes: &DOCKER_HOST
             - "/var/run/docker.sock:/var/run/docker.sock:ro"
+          networks:
+            - "{{ _.network.name }}"
 
         whoami:
           image: "traefik/whoami"
           container_name: "{{ host_or_fqdn }}"
           expose:
             - "80"
+          networks:
+            - "{{ _.network.name }}"
           labels:
-            # - "traefik.backend="
-            - "traefik.docker.network=web"
-            - "traefik.frontend.rule=Host:{{ host_or_fqdn }}"
             - "traefik.enable=true"
-            - "traefik.port=80"
-            # - "traefik.enable=true"
-            # - "traefik.http.routers.whoami.rule=Host(`{{ host_or_fqdn }}`)"
-            # - "traefik.http.routers.whoami.entrypoints=web"
-
-        # whoami-hooks:
-        #   image: "traefik/whoami"
-        #   container_name: "whoami-hooks"
-        #   labels:
-        #     - "traefik.enable=true"
-        #     - "traefik.http.routers.whoami.rule=Host(`hooks.b1s.no`)"
-        #     - "traefik.http.routers.whoami.entrypoints=web"
+            - "traefik.http.routers.api.rule=Host(`{{ host_or_fqdn }}`)"
+            - "traefik.http.routers.api.service={{ _.service.name }}"
+            - "traefik.http.routers.api.tls=true"
+            - "traefik.http.routers.api.tls.certresolver={{ _.resolver.name }}"
 
         tailscale-nginx:
           image: "tailscale/tailscale:latest"
