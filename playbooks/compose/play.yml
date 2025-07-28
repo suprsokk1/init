@@ -38,17 +38,41 @@
         chdir: '/opt'
 
   vars:
+    host_or_fqdn: >-
+      {{ fqdn | d(ansible_host) }}
+
+    traefik_http_challenge: &HTTP_CHALLENGE
+      command:
+        - "--acme.storage=acme.json"
+        - "--acme.entryPoint=https"
+        - "--acme.onHostRule=true"
+        - "--acme.httpchallenge.entrypoint=http"
+    traefik_dns_challenge: &DNS_CHALLENGE
+      command:
+        - "--acme.dnsChallenge.disablePropagationCheck=false"
+        - "--acme.dnsChallenge.provider=digitalocean"
+        - "--acme.onHostRule=true"
+        - "--acme.storage=acme.json"
+
     composefile:
       services:
         traefik:
+          <<: *HTTP_CHALLENGE
           image: "traefik:v3.5"
           container_name: "traefik"
           command:
-            #- "--log.level=DEBUG"
-            - "--api.insecure=true"
-            - "--providers.docker=true"
-            - "--providers.docker.exposedbydefault=false"
-            - "--entryPoints.web.address=:80"
+            - "--retry"
+            - "--debug=false"
+            - "--logLevel=ERROR"
+            - "--acme.email={{ acme_challenge_password_email }}"
+            - "--defaultentrypoints=https,http"
+            - "--entryPoints=Name:http Address::80 Redirect.EntryPoint:https"
+            - "--entryPoints=Name:https Address::443 TLS"
+            - "--docker.endpoint=unix:///var/run/docker.sock"
+            - "--docker.domain={{ host_or_fqdn }}"
+            - "--docker.watch=true"
+            - "--docker.exposedbydefault=false"
+
           ports:
             - "80:80"
             - "443:443"
@@ -58,11 +82,22 @@
 
         whoami:
           image: "traefik/whoami"
-          container_name: "whoami-{{ fqdn | d(ansible_host) }}"
+          container_name: "whoami-{{ host_or_fqdn }}"
           labels:
             - "traefik.enable=true"
-            - "traefik.http.routers.whoami.rule=Host(`{{ fqdn | d(ansible_host) }}`)"
+            - "traefik.http.routers.whoami.rule=Host(`{{ host_or_fqdn }}`)"
             - "traefik.http.routers.whoami.entrypoints=web"
+            - "acme.httpChallenge.entryPoint=https"
+            - "acme.entryPoint=http"
+
+        # whoami-hooks:
+        #   image: "traefik/whoami"
+        #   container_name: "whoami-hooks"
+        #   labels:
+        #     - "traefik.enable=true"
+        #     - "traefik.http.routers.whoami.rule=Host(`hooks.b1s.no`)"
+        #     - "traefik.http.routers.whoami.entrypoints=web"
+
 
         tailscale-nginx:
           image: "tailscale/tailscale:latest"
@@ -82,25 +117,31 @@
             - "/opt/tailscale-nginx/state:/var/lib/tailscale"
 
         ntfy:
-          image: binwiederhier/ntfy
+          image: "binwiederhier/ntfy"
           container_name: ntfy
           command:
             - serve
+          volumes:
+            - "/var/cache/ntfy:/var/cache/ntfy"
+            - "/etc/ntfy:/etc/ntfy"
+          healthcheck: # optional: remember to adapt the host:port to your environment
+              test:
+                - "CMD-SHELL"
+                - "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"
+              interval: "60s"
+              timeout: "10s"
+              retries: 3
+              start_period: "40s"
+          restart: unless-stopped
+          # labels:
+          #   - "traefik.enable=true"
+          #   - "traefik.http.routers.whoami.rule=Host(`{{ domain }}`)"
+          #   - "traefik.http.routers.whoami.entrypoints=web"
           # environment:
           #   - TZ=UTC    # optional: set desired timezone
           # user: UID:GID # optional: replace with your own user/group or uid/gid
-          volumes:
-            - /var/cache/ntfy:/var/cache/ntfy
-            - /etc/ntfy:/etc/ntfy
-          ports:
-            - 10080:80
-          healthcheck: # optional: remember to adapt the host:port to your environment
-              test: ["CMD-SHELL", "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"]
-              interval: 60s
-              timeout: 10s
-              retries: 3
-              start_period: 40s
-          restart: unless-stopped
+          # ports:
+          #   - 10080:80
 
         nginx:
           image: "nginx"
@@ -122,6 +163,14 @@
           volumes: 
             - "/var/run/docker.sock:/var/run/docker.sock:rw"
 
+    acme_challenge_password_email: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      63313963646165633166333438393564333538636132363030643833643266663564303263363166
+      3863646531656337653833613532653066353865656362650a346331353165663933626639303737
+      34386434316666663434653830656537346430633234313930363330343032393835623864653866
+      3535613263353033660a326561373438633562323332626665333965663931366332633336363638
+      65613431353533336565646164306331616230643638396430396234363035353162
+
     ts_auth_key: !vault |
       $ANSIBLE_VAULT;1.1;AES256
       36373131643239643731613633336436363530306365366436616334643662383838366539656263
@@ -140,9 +189,10 @@
   become_user: root
   no_log: false
   tasks:
-    - name: Open HTTP and HTTPS
+    - name: Open HTTP, HTTP alt. and HTTPS
       loop:
         - 80
+        - 8080
         - 443
       community.general.ufw:
         rule: allow
