@@ -14,7 +14,7 @@
   tasks:
     - name: Create 'compose.yml' to '/opt'
       ansible.builtin.copy:
-        dest: /opt/compose.yml
+        dest: '/opt/compose.yml'
         # src: docker/compose.yml
         mode: '0600'
         owner: 'root'
@@ -31,25 +31,6 @@
         owner: 'root'
         group: 'root'
 
-    - name: "Traefik whoami"
-      copy:
-        mode: '0600'
-        owner: 'root'
-        group: 'root'
-        dest: '/opt/compose-whoami-{{ ansible_host }}.yml'
-        content: |
-          {{ _document | to_yaml }}
-      vars:
-        _document:
-          services:
-            whoami:
-              image: "traefik/whoami"
-              container_name: "whoami-{{ ansible_host }}"
-              labels:
-                - "traefik.enable=true"
-                - "traefik.http.routers.whoami.rule=Host(`{{ ansible_host }}`)"
-                - "traefik.http.routers.whoami.entrypoints=web"
-
     - name: "Start 'tailscale'"
       ansible.builtin.shell: >-
         docker compose up --detach
@@ -57,16 +38,6 @@
         chdir: '/opt'
 
   vars:
-    ts_auth_key: !vault |
-      $ANSIBLE_VAULT;1.1;AES256
-      36373131643239643731613633336436363530306365366436616334643662383838366539656263
-      3936373864336237316130663936643537313465323134620a666262323639363462313463326361
-      32373163646536343830643533643866386463366232643765306534626437393131633130666164
-      3834633835353734370a613739333731346134646136303966626233316637393766373966303537
-      34313630643339656530636435323234333939613433663531653830386365333562383837623735
-      63666564613866643061326638353831313462616431366361666661393034643133346461333436
-      326165646534613063333234373335316638
-
     composefile:
       services:
         traefik:
@@ -85,9 +56,17 @@
           volumes: &DOCKER_HOST
             - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
+        whoami:
+          image: "traefik/whoami"
+          container_name: "whoami-{{ fqdn | d(ansible_host) }}"
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.whoami.rule=Host(`{{ fqdn | d(ansible_host) }}`)"
+            - "traefik.http.routers.whoami.entrypoints=web"
+
         tailscale-nginx:
           image: "tailscale/tailscale:latest"
-          hostname: "{{ ansible_host }}"
+          hostname: "{{ fqdn | d(ansible_host) }}"
           environment:
             - "TS_STATE_DIR=/var/lib/tailscale"
             - "TS_USERSPACE=false"
@@ -102,11 +81,32 @@
           volumes:
             - "/opt/tailscale-nginx/state:/var/lib/tailscale"
 
-        # nginx:
-        #   image: "nginx"
-        #   depends_on:
-        #     - "tailscale-nginx"
-        #   network_mode: "service:tailscale-nginx"
+        ntfy:
+          image: binwiederhier/ntfy
+          container_name: ntfy
+          command:
+            - serve
+          environment:
+            - TZ=UTC    # optional: set desired timezone
+          user: UID:GID # optional: replace with your own user/group or uid/gid
+          volumes:
+            - /var/cache/ntfy:/var/cache/ntfy
+            - /etc/ntfy:/etc/ntfy
+          ports:
+            - 80:80
+          healthcheck: # optional: remember to adapt the host:port to your environment
+              test: ["CMD-SHELL", "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"]
+              interval: 60s
+              timeout: 10s
+              retries: 3
+              start_period: 40s
+          restart: unless-stopped
+
+        nginx:
+          image: "nginx"
+          depends_on:
+            - "tailscale-nginx"
+          network_mode: "service:tailscale-nginx"
 
         autoheal:
           image: "willfarrell/autoheal"
@@ -121,6 +121,16 @@
           restart: "always"
           volumes: 
             - "/var/run/docker.sock:/var/run/docker.sock:rw"
+
+    ts_auth_key: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      36373131643239643731613633336436363530306365366436616334643662383838366539656263
+      3936373864336237316130663936643537313465323134620a666262323639363462313463326361
+      32373163646536343830643533643866386463366232643765306534626437393131633130666164
+      3834633835353734370a613739333731346134646136303966626233316637393766373966303537
+      34313630643339656530636435323234333939613433663531653830386365333562383837623735
+      63666564613866643061326638353831313462616431366361666661393034643133346461333436
+      326165646534613063333234373335316638
 
 - name: UFW
   hosts: 'ubuntu-vm'
