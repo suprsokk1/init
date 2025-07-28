@@ -57,22 +57,25 @@
     composefile:
       services:
         traefik:
-          <<: *HTTP_CHALLENGE
+          # <<: *HTTP_CHALLENGE
           image: "traefik:v3.5"
           container_name: "traefik"
           command:
-            - "--retry"
             - "--debug=false"
             - "--logLevel=ERROR"
-            - "--acme.email={{ acme_challenge_password_email }}"
             - "--defaultentrypoints=https,http"
             - "--entryPoints=Name:http Address::80 Redirect.EntryPoint:https"
             - "--entryPoints=Name:https Address::443 TLS"
+            - "--retry"
             - "--docker.endpoint=unix:///var/run/docker.sock"
             - "--docker.domain={{ host_or_fqdn }}"
             - "--docker.watch=true"
             - "--docker.exposedbydefault=false"
-
+            - "--acme.email={{ acme_challenge_email }}"
+            - "--acme.storage=acme.json"
+            - "--acme.entryPoint=https"
+            - "--acme.onHostRule=true"
+            - "--acme.httpchallenge.entrypoint=http"
           ports:
             - "80:80"
             - "443:443"
@@ -87,8 +90,6 @@
             - "traefik.enable=true"
             - "traefik.http.routers.whoami.rule=Host(`{{ host_or_fqdn }}`)"
             - "traefik.http.routers.whoami.entrypoints=web"
-            - "acme.httpChallenge.entryPoint=https"
-            - "acme.entryPoint=http"
 
         # whoami-hooks:
         #   image: "traefik/whoami"
@@ -97,7 +98,6 @@
         #     - "traefik.enable=true"
         #     - "traefik.http.routers.whoami.rule=Host(`hooks.b1s.no`)"
         #     - "traefik.http.routers.whoami.entrypoints=web"
-
 
         tailscale-nginx:
           image: "tailscale/tailscale:latest"
@@ -120,18 +120,18 @@
           image: "binwiederhier/ntfy"
           container_name: ntfy
           command:
-            - serve
+            - "serve"
           volumes:
             - "/var/cache/ntfy:/var/cache/ntfy"
             - "/etc/ntfy:/etc/ntfy"
-          healthcheck: # optional: remember to adapt the host:port to your environment
-              test:
-                - "CMD-SHELL"
-                - "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"
-              interval: "60s"
-              timeout: "10s"
-              retries: 3
-              start_period: "40s"
+          healthcheck:
+            test:
+              - "CMD-SHELL"
+              - "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"
+            interval: "60s"
+            timeout: "10s"
+            retries: 3
+            start_period: "40s"
           restart: unless-stopped
           # labels:
           #   - "traefik.enable=true"
@@ -163,7 +163,7 @@
           volumes: 
             - "/var/run/docker.sock:/var/run/docker.sock:rw"
 
-    acme_challenge_password_email: !vault |
+    acme_challenge_email: !vault |
       $ANSIBLE_VAULT;1.1;AES256
       63313963646165633166333438393564333538636132363030643833643266663564303263363166
       3863646531656337653833613532653066353865656362650a346331353165663933626639303737
