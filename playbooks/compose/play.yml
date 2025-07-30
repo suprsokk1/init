@@ -153,15 +153,15 @@
     traefik_websecure_entrypoint_name: "websecure"
 
     composefile:
-      configs:
-        traefik:
-          content: |
-            ---
-            tls:
-              certificates:
-                - certFile: /certs/local.crt
-                  keyFile:  /certs/local.key
-            ...
+      # configs:
+      #   traefik:
+      #     content: |
+      #       ---
+      #       tls:
+      #         certificates:
+      #           - certFile: /certs/local.crt
+      #             keyFile:  /certs/local.key
+      #       ...
 
       networks:
         proxy:
@@ -174,8 +174,8 @@
           restart: unless-stopped
           security_opt:
             - no-new-privileges:true
-          configs:
-            - "traefik:/dynamic/tls.yaml"
+          # configs:
+          #   - "traefik:/dynamic/tls.yaml"
           networks:
            # Connect to the 'traefik_proxy' overlay network for inter-container communication across nodes
             - proxy
