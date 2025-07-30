@@ -214,6 +214,9 @@
             - "--accesslog=true"
             - "--metrics.prometheus=true"
 
+            - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.tlschallenge=true"
+            - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.email={{ traefik_acme_challenge_email }}"
+            - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.storage=/acme.json"
           # Traefik Dynamic configuration via Docker labels
           labels:
             # Enable self‑routing
