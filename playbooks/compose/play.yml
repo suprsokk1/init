@@ -12,7 +12,7 @@
       meta: noop
 
   tasks:
-    - name: Create 'compose.yml' to '/opt'
+    - name: "Create 'compose.yml' to '/opt'"
       ansible.builtin.copy:
         dest: '/opt/compose.yml'
         # src: docker/compose.yml
@@ -42,69 +42,57 @@
       {{ fqdn | d(ansible_host) }}
 
     traefik_http_challenge: &HTTP_CHALLENGE
-      command:
-        - "--acme.storage=acme.json"
-        - "--acme.entryPoint=https"
-        - "--acme.onHostRule=true"
-        - "--acme.httpchallenge.entrypoint=http"
+      traefik:
+        command:
+          - "--acme.storage=acme.json"
+          - "--acme.entryPoint=https"
+          - "--acme.onHostRule=true"
+          - "--acme.httpchallenge.entrypoint=http"
+
     traefik_dns_challenge: &DNS_CHALLENGE
-      command:
-        - "--acme.dnsChallenge.disablePropagationCheck=false"
-        - "--acme.dnsChallenge.provider=digitalocean"
-        - "--acme.onHostRule=true"
-        - "--acme.storage=acme.json"
+      traefik:
+        command:
+          - "--acme.dnsChallenge.disablePropagationCheck=false"
+          - "--acme.dnsChallenge.provider=digitalocean"
+          - "--acme.onHostRule=true"
+          - "--acme.storage=acme.json"
 
-    _:
-      resolver:
-        name: "frontend"
-      network:
-        name: "frontend"
-      service:
-        name: "api@internal"
+    traefik_plugin_crowdsec: &CROWDSEC
+      traefik:
+        command:
+          - "--experimental.plugins.crowdsec-bouncer-traefik-plugin.modulename=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
+          - "--experimental.plugins.crowdsec-bouncer-traefik-plugin.version=v1.4.4"
 
-    composefile:
+    traefik_plugin_geoblock: &GEOBLOCKING
+      traefik:
+        command:
+          - "--experimental.plugins.geoblock.modulename=github.com/PascalMinder/geoblock"
+          - "--experimental.plugins.geoblock.version=v0.3.3"
+
+    docker_sock_ro: &DOCKER_SOCK_RO
+      volumes:
+        - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+    docker_sock_rw: &DOCKER_SOCK_RW
+      volumes:
+        - "/var/run/docker.sock:/var/run/docker.sock:rw"
+
+    proxy_network: &PROXY_NETWORK
       networks:
-        frontend:
+        proxy:
+          name: "proxy"
           external: false
 
       services:
         traefik:
-          # <<: *HTTP_CHALLENGE
-          image: "traefik:v3.5"
-          container_name: "traefik"
-          command:
-            - "--entrypoints.web.address=:80"
-            - "--entrypoints.websecure.address=:443"
-            - "--providers.docker=true"
-            - "--providers.docker.network={{ _.network.name }}"
-            - "--api.dashboard=true"
-            - "--log.level=INFO"
-            - "--certificatesresolvers.{{ _.resolver.name }}.acme.tlschallenge=true"
-            - "--certificatesresolvers.{{ _.resolver.name }}.acme.email={{ acme_challenge_email }}"
-            - "--certificatesresolvers.{{ _.resolver.name }}.acme.storage=/acme.json"
-          ports:
-            - "80:80"
-            - "443:443"
-            # - "8080:8080"
-          volumes: &DOCKER_HOST
-            - "/var/run/docker.sock:/var/run/docker.sock:ro"
           networks:
-            - "{{ _.network.name }}"
-
+            - "proxy"
         whoami:
-          image: "traefik/whoami"
-          container_name: "{{ host_or_fqdn }}"
-          expose:
-            - "80"
           networks:
-            - "{{ _.network.name }}"
-          labels:
-            - "traefik.enable=true"
-            - "traefik.http.routers.api.rule=Host(`{{ host_or_fqdn }}`)"
-            - "traefik.http.routers.api.service={{ _.service.name }}"
-            - "traefik.http.routers.api.tls=true"
-            - "traefik.http.routers.api.tls.certresolver={{ _.resolver.name }}"
-            - "traefik.http.middlewares.test-auth.basicauth.users={{ http_secret }}"
+            - "proxy"
+
+    tailscale: &TAILSCALE
+      service:
         tailscale-nginx:
           image: "tailscale/tailscale:latest"
           hostname: "{{ fqdn | d(ansible_host) }}"
@@ -122,39 +110,15 @@
           volumes:
             - "/opt/tailscale-nginx/state:/var/lib/tailscale"
 
-        ntfy:
-          image: "binwiederhier/ntfy"
-          container_name: ntfy
-          command:
-            - "serve"
-          volumes:
-            - "/var/cache/ntfy:/var/cache/ntfy"
-            - "/etc/ntfy:/etc/ntfy"
-          healthcheck:
-            test:
-              - "CMD-SHELL"
-              - "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"
-            interval: "60s"
-            timeout: "10s"
-            retries: 3
-            start_period: "40s"
-          restart: unless-stopped
-          # labels:
-          #   - "traefik.enable=true"
-          #   - "traefik.http.routers.whoami.rule=Host(`{{ domain }}`)"
-          #   - "traefik.http.routers.whoami.entrypoints=web"
-          # environment:
-          #   - TZ=UTC    # optional: set desired timezone
-          # user: UID:GID # optional: replace with your own user/group or uid/gid
-          # ports:
-          #   - 10080:80
-
         nginx:
           image: "nginx"
           depends_on:
             - "tailscale-nginx"
           network_mode: "service:tailscale-nginx"
 
+
+    autoheal: &AUTOHEAL
+      services:
         autoheal:
           image: "willfarrell/autoheal"
           environment:
@@ -166,8 +130,89 @@
             CURL_TIMEOUT: 30
           privileged: true
           restart: "always"
-          volumes: 
-            - "/var/run/docker.sock:/var/run/docker.sock:rw"
+          <<: *DOCKER_SOCK_RW
+
+        ntfy:
+          healthcheck:
+            test:
+              - "CMD-SHELL"
+              - >-
+                wget -q --tries=1 http://localhost:80/v1/health -O - |
+                  grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1
+            interval: "60s"
+            timeout: "10s"
+            retries: 3
+            start_period: "40s"
+
+    traefik_resolver_name: "http"
+    traefik_network_name: "proxy"
+    traefik_service_name: "api@internal"
+    traefik_router_name: "whoami"
+    traefik_middleware_name: "simpleauth"
+
+    composefile:
+      <<: *PROXY_NETWORK
+      <<: *AUTOHEAL
+      # <<: *HTTP_CHALLENGE
+      # <<: *DNS_CHALLENGE
+      # <<: *CROWDSEC
+      # <<: *GEOBLOCK
+
+      networks:
+        frontend:
+          name: "frontend"
+
+      services:
+        traefik:
+          <<: *DOCKER_SOCK_RO
+          image: "traefik:v3.5"
+          container_name: "traefik"
+          hostname: "traefik"
+          ports:
+            - "80:80"
+            - "443:443"
+
+          command:
+            - "--api.dashboard=true"
+            - "--log.level=INFO"
+            - "--entrypoints.web.address=:80"
+            - "--entrypoints.websecure.address=:443"
+            - "--providers.docker=true"
+            - "--providers.docker.network={{ traefik_network_name }}"
+            - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.tlschallenge=true"
+            - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.email={{ traefik_acme_challenge_email }}"
+            - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.storage=/acme.json"
+
+        whoami:
+          image: "traefik/whoami"
+          container_name: "{{ host_or_fqdn }}"
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.{{ traefik_router_name }}.tls=true"
+            - "traefik.http.routers.{{ traefik_router_name }}.rule=Host(`{{ host_or_fqdn }}`)"
+            - "traefik.http.routers.{{ traefik_router_name }}.service={{ traefik_service_name }}"
+            - "traefik.http.routers.{{ traefik_router_name }}.tls.certresolver={{ traefik_resolver_name }}"
+            - "traefik.http.middlewares.{{ traefik_middleware_name }}.basicauth.users={{ http_secret }}"
+
+        ntfy:
+          image: "binwiederhier/ntfy"
+          container_name: ntfy
+          command:
+            - "serve"
+          volumes:
+            - "/var/cache/ntfy:/var/cache/ntfy"
+            - "/etc/ntfy:/etc/ntfy"
+          restart: unless-stopped
+
+          # labels:
+          #   - "traefik.enable=true"
+          #   - "traefik.http.routers.whoami.rule=Host(`{{ domain }}`)"
+          #   - "traefik.http.routers.whoami.entrypoints=web"
+          # environment:
+          #   - TZ=UTC    # optional: set desired timezone
+          # user: UID:GID # optional: replace with your own user/group or uid/gid
+          # ports:
+          #   - 10080:80
 
     http_secret: !vault |
       $ANSIBLE_VAULT;1.1;AES256
@@ -181,7 +226,7 @@
       34353066353266363336326464313736616336613837313431316465393039346664623538383235
       63333336663435643335383434366235396561383235626637666434663139323361
 
-    acme_challenge_email: !vault |
+    traefik_acme_challenge_email: !vault |
       $ANSIBLE_VAULT;1.1;AES256
       63313963646165633166333438393564333538636132363030643833643266663564303263363166
       3863646531656337653833613532653066353865656362650a346331353165663933626639303737
@@ -207,10 +252,9 @@
   become_user: root
   no_log: false
   tasks:
-    - name: Open HTTP, HTTP alt. and HTTPS
+    - name: Open HTTP and HTTPS
       loop:
         - 80
-        - 8080
         - 443
       community.general.ufw:
         rule: allow
