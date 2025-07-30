@@ -149,6 +149,8 @@
     traefik_service_name: "api@internal"
     traefik_router_name: "whoami"
     traefik_middleware_name: "simpleauth"
+    traefik_web_entrypoint_name: "web"
+    traefik_websecure_entrypoint_name: "websecure"
 
     composefile:
       <<: *PROXY_NETWORK
@@ -171,17 +173,22 @@
           ports:
             - "80:80"
             - "443:443"
-
           command:
             - "--api.dashboard=true"
             - "--log.level=INFO"
-            - "--entrypoints.web.address=:80"
-            - "--entrypoints.websecure.address=:443"
+            - "--entrypoints.{{ traefik_web_entrypoint_name }}.address=:80"
+            - "--entrypoints.{{ traefik_websecure_entrypoint_name }}.address=:443"
             - "--providers.docker=true"
             - "--providers.docker.network={{ traefik_network_name }}"
             - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.tlschallenge=true"
             - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.email={{ traefik_acme_challenge_email }}"
             - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.storage=/acme.json"
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.dashboard.rule=Host(`dashboard.localhost`)"
+            - "traefik.http.routers.dashboard.entrypoints=websecure"
+            - "traefik.http.routers.dashboard.service={{ traefik_service_name }}"
+            - "traefik.http.routers.dashboard.tls=true"
 
         whoami:
           image: "traefik/whoami"
