@@ -185,10 +185,10 @@
             - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.storage=/acme.json"
           labels:
             - "traefik.enable=true"
-            - "traefik.http.routers.dashboard.rule=Host(`dashboard.localhost`)"
-            - "traefik.http.routers.dashboard.entrypoints=websecure"
-            - "traefik.http.routers.dashboard.service={{ traefik_service_name }}"
             - "traefik.http.routers.dashboard.tls=true"
+            - "traefik.http.routers.dashboard.rule=Host(`dashboard.localhost`)"
+            - "traefik.http.routers.dashboard.entrypoints={{ traefik_websecure_entrypoint_name }}"
+            - "traefik.http.routers.dashboard.service={{ traefik_service_name }}"
 
         whoami:
           image: "traefik/whoami"
@@ -197,6 +197,7 @@
             - "traefik.enable=true"
             - "traefik.http.routers.{{ traefik_router_name }}.tls=true"
             - "traefik.http.routers.{{ traefik_router_name }}.rule=Host(`{{ host_or_fqdn }}`)"
+            - "traefik.http.routers.{{ traefik_router_name }}.entrypoints={{ traefik_websecure_entrypoint_name }}"
             - "traefik.http.routers.{{ traefik_router_name }}.service={{ traefik_service_name }}"
             - "traefik.http.routers.{{ traefik_router_name }}.tls.certresolver={{ traefik_resolver_name }}"
             - "traefik.http.middlewares.{{ traefik_middleware_name }}.basicauth.users={{ http_secret }}"
