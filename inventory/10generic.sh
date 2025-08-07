@@ -1,7 +1,7 @@
 #!/bin/bash
 getopt --name="${0##*/}" --longoptions=list,host: -- "$@" >/dev/null || exit
 
-if true; then
+if false; then
   if command -v jq &>/dev/null; then
     if ! ((NEST)); then
       env NEST=1 bash "$0" "$@" | command jq -M
@@ -10,7 +10,9 @@ if true; then
   fi
 fi
 
+declare -x GIT_WORK_TREE
 read -r GIT_WORK_TREE < <(command git rev-parse --show-toplevel)
+
 
 read -r WORKDIR < <(command date  '+/dev/shm/%Y/%m/%d/%H')
 command mkdir -p -- "$WORKDIR" &>/dev/null
@@ -18,15 +20,32 @@ pushd "$WORKDIR" &>/dev/null || exit
 
 TODO() { false; }
 
+__command() {
+  local TIMEOUT
+  TIMEOUT=5
+  /usr/bin/command timeout ${TIMEOUT}s "$@"
+  case ${?} in
+    ( 0 )
+
+    ;;
+
+    ( 12? )
+
+    ;;
+  esac
+}
+
 set -o allexport ${DEBUG:+-s xtrace}
 
 declare -A REQUIRE_EXECUTABLES
 declare -a INSTALLED_EXECUTABLES
+declare FACT_PROXMOX
 declare FACT_PULL_URL
 declare FACT_PULL_BRANCH
 declare FACT_PULL_USER
 declare FACT_PULL_REPO
 declare FACT_DISTRO
+declare FACT_DISTRO_NAME
 declare FACT_DISTRO_VERSION
 declare FACT_CHASSIS
 declare FACT_ACCESS
@@ -81,8 +100,9 @@ PS4=$'\b${BASH_SOURCE[0]##*/}:${FUNCNAME:+${FUNCNAME[0]}:}rc=${?}:$(tput setaf 2
 LC_ALL=C
 NO_COLOR=1
 
-FACT_DISTRO="$ID"
-FACT_DISTRO_VERSION="${VERSION_ID//./-}"
+FACT_DISTRO_NAME="$ID"
+FACT_DISTRO="${ID}${VERSION_ID//./_}"
+FACT_DISTRO_VERSION="${VERSION_ID//./_}"
 
 : ${HOSTNAME:-$(< /etc/hostname)}
 REQUIRE_EXECUTABLES=(
@@ -96,11 +116,11 @@ read -r _ _ _ FACT_PULL_USER FACT_PULL_REPO _ < <(
     command sed -E 's#[[:punct:]]+# #g'
 )
 
-read -r FACT_PULL_URL < <(command git -C $OLDPWD remote get-url origin)
+read -r FACT_PULL_URL    < <(command git -C $OLDPWD remote get-url origin)
 read -r FACT_PULL_BRANCH < <(command git -C $OLDPWD rev-parse --abbrev-ref HEAD)
-read -r FACT_CHASSIS < <(command hostnamectl chassis)
+read -r FACT_CHASSIS     < <(command hostnamectl chassis)
 
-FACT_BOOTSTRAP_COMPLETE_TAG_FILE="/ANSIBLE_FACT_PULL_FACT_BOOTSTRAP_COMPLETE.TAG"
+FACT_BOOTSTRAP_COMPLETE_TAG_FILE="/BOOTSTRAP_COMPLETE.TAG"
 FACT_BOOTSTRAP_COMPLETE=false
 
 read -r FACT_UID < <(command id -u)
@@ -156,6 +176,10 @@ fi
 
 wait
 
+if command /usr/bin/env LC_ALL=C grep -w -- 'Proxmox' /etc/issue; then
+  FACT_PROXMOX=true
+fi
+
 if command systemd-detect-virt --container --quiet; then
   VIRT=containers
 elif command systemd-detect-virt --vm --quiet; then
@@ -180,6 +204,14 @@ if [ -s "$HOME"/.ssh/known_hosts ]; then
   )
 fi
 
+
+ip_address_group_names() {
+  command ip a |
+    command gawk  -vRS='[[:space:]]+' -vFS='\x2e' '/^([[:digit:]]+\x2e){3}([[:digit:]]+)(\/[[:digit:]]{1,2})?$/{gsub(/[:.\x2f]/,"_"); print "net_"$0}' |
+    command xargs
+}
+export -f ip_address_group_names
+
 print_ssh_keys() {
   command /usr/bin/find ~/.ssh/ -maxdepth 1 -mindepth 1 -name 'id_*.pub' \
     -printf \" -exec sed -zE 's#[\n ]+##g' {} \; \
@@ -188,27 +220,26 @@ print_ssh_keys() {
 }
 
 print_group() {
+  # local IFS
+  # IFS=$'\x22'"$IFS"
   local group
-  group="$1"
+  group="$*"
   cat <<LOOP_LIST_LONGOPTION_EOF
-  "${group}": {
-    "hosts": [ "${HOSTNAME}" ],
+  "${group//\x22/}": {
+    "hosts": ["${HOSTNAME}"],
     "vars": {
       ${JSON_VARS[*]}
     }
-  },
+  }
 LOOP_LIST_LONGOPTION_EOF
 }
-
 
 print_json_mapping() {
   local fact
   local i
   i=0
-
-  # count=${#FACTS[@]}
   count=$#
-  # for fact in "${FACTS[@]}"; do
+
   for var in "$@"; do
     if ! [ -n "${!var}" ]; then
       continue
@@ -234,8 +265,7 @@ VIRTUAL_EOF
   ( * )
     mapfile JSON_VARS_VIRTUAL  <<DEFAULT_EOF
 "ansible_env": {
-$(if [ -s TXT_DO_API_TOKEN ]; then printf '"%s": "%s",' DO_API_TOKEN $(command xargs -a TXT_DO_API_TOKEN); fi)"ANSIBLE_VAULT_PASSWORD_FILE": "vault-default-password"
-},
+$(if [ -s TXT_DO_API_TOKEN ]; then printf '"%s": "%s",' DO_API_TOKEN $(command xargs -a TXT_DO_API_TOKEN); fi)"ANSIBLE_VAULT_PASSWORD_FILE": "vault-default-password"},
 DEFAULT_EOF
 esac
 
@@ -262,11 +292,12 @@ ${JSON_VARS_VIRTUAL:+${JSON_VARS_VIRTUAL[@]}}"ansible_user_id": "${USER}",
 "pull_repo": "${FACT_PULL_REPO}",
 "pull_url": "${FACT_PULL_URL}",
 "pull_branch": "${FACT_PULL_BRANCH}",
+$(printf '"%s": true,\n' $(ip_address_group_names))
 $(if [ -s FACT_PUBLIC_IP ]; then printf '"%s": "%s",' public_ip $(command xargs -a FACT_PUBLIC_IP); fi)
 $(if [ -s FACT_FQDN ]; then printf '"%s": "%s",' fqdn $(command xargs -a FACT_FQDN); fi)
 "bootstrap_complete_tag_file": "${FACT_BOOTSTRAP_COMPLETE_TAG_FILE}",
 "install_packages": ["jq"],
-"ifconfig.net": $(if true;then command cat JSON_WHOAMI; else echo '[]'; fi),
+"ifconfig.net": $(if true; then command cat JSON_WHOAMI; else echo '[]'; fi),
 "ssh_keys":[ $(print_ssh_keys) ],
 "galaxy": {
   "collections": [ ],
@@ -274,36 +305,68 @@ $(if [ -s FACT_FQDN ]; then printf '"%s": "%s",' fqdn $(command xargs -a FACT_FQ
 }
 JSON_VARS_EOF
 
+join() {
+  local IFS
+  IFS="$1"
+  shift
+  set - "$*"
+  echo "$*"
+}
+
+quote() {
+  if [ -t 0 ]; then
+     printf '"%s" ' "$@"
+  else
+    command xargs -r printf '"%s" '
+  fi
+}
+
+export -f join
+export -f quote
+
+FACT_ACCESS="user"               # DEFAULT
+case $(command /usr/bin/id  -u) in
+  ( 0 )
+  FACT_ACCESS="root"
+  ;;
+
+  ( * )
+  if [ -n "${SUDO_USER:-}"  ]; then
+  FACT_ACCESS="elevated"
+  fi
+esac
+
+mapfile GROUP_NAMES <<EOF
+local
+${FACT_ACCESS}
+${VIRT}
+${FACT_CHASSIS}
+$FACT_DISTRO_NAME
+${FACT_DISTRO_NAME}_${FACT_DISTRO_VERSION}
+${FACT_DISTRO}
+${FACT_ACCESS}_${VIRT}_${FACT_CHASSIS}_${FACT_DISTRO_NAME}_${FACT_DISTRO_VERSION}
+${FACT_ACCESS}_${VIRT}_${FACT_CHASSIS}_${FACT_DISTRO}
+${FACT_CHASSIS}_${FACT_DISTRO}_${VIRT}_${FACT_ACCESS}
+${FACT_DISTRO}_${VIRT}_${FACT_ACCESS}
+${FACT_DISTRO}_${FACT_CHASSIS}_${FACT_ACCESS}
+EOF
+
+if ! $FACT_BOOTSTRAP_COMPLETE; then
+GROUP_NAMES=("new")
+fi
+
+if $FACT_PROXMOX; then
+GROUP_NAMES=("proxmox")
+fi
+
 while [ -n "$*" ]; do
 case "$1" in
   (--list)
-    FACT_ACCESS="user"               # DEFAULT
-    case $(command /usr/bin/id  -u) in
-      ( 0 )
-      FACT_ACCESS="root"
-      ;;
-
-      ( * )
-      if [ -n "${SUDO_USER:-}"  ]; then
-        FACT_ACCESS="elevated"
-      fi
-    esac
 
     cat <<-LIST_LONGOPTION_EOF
 {
  "all": {
-    "children": [
-      "local",
-      $(if ! $FACT_BOOTSTRAP_COMPLETE; then echo -en '"new",'; fi)
-      "${FACT_ACCESS}",
-      "${VIRT}",
-      "${FACT_CHASSIS}",
-      "${FACT_DISTRO}",
-      "${FACT_DISTRO}-${FACT_DISTRO_VERSION}",
-      "${FACT_DISTRO}${FACT_DISTRO_VERSION}",
-      "${FACT_DISTRO^}${FACT_DISTRO_VERSION}",
-      "${FACT_ACCESS}-${VIRT}-${FACT_CHASSIS}-${FACT_DISTRO}-${FACT_DISTRO_VERSION}"
-    ]
+    "children": [ $(join , $(quote ${GROUP_NAMES[*]})) ]
  },
  "local": {
     "hosts": [ "localhost" ],
@@ -319,19 +382,13 @@ LIST_LONGOPTION_EOF
 
     if ! $FACT_BOOTSTRAP_COMPLETE; then
       print_group "new"
+      echo -en ','
     fi
 
-    for group in \
-      "$FACT_ACCESS" \
-      "$VIRT" \
-      "$FACT_CHASSIS" \
-      "$FACT_DISTRO" \
-      "${FACT_DISTRO}-${FACT_DISTRO_VERSION}" \
-      "${FACT_DISTRO}${FACT_DISTRO_VERSION}" \
-      "${FACT_DISTRO^}${FACT_DISTRO_VERSION}" \
-      "${FACT_ACCESS}-${VIRT}-${FACT_CHASSIS}-${FACT_DISTRO}-${FACT_DISTRO_VERSION}"
+    for group in "${GROUP_NAMES[@]}"
     do
       print_group "$group"
+      echo -en ','
     done
 
     cat <<LIST_LONGOPTION_EOF
