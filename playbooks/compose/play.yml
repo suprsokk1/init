@@ -26,7 +26,7 @@
       ansible.builtin.copy:
         dest: '/opt/tailscale.env'
         content: |
-          TS_AUTHKEY={{ ts_auth_key | d(ts_key_default) }}
+          TS_AUTHKEY={{ secrets.ts_auth_key | d(ts_key_default) }}
         mode: '0600'
         owner: 'root'
         group: 'root'
@@ -117,6 +117,19 @@
           network_mode: "service:tailscale-nginx"
 
 
+    ntfy: &NTFY
+      services:
+        ntfy:
+          image: "binwiederhier/ntfy"
+          container_name: ntfy
+          command:
+            - "serve"
+          volumes:
+            - "/var/cache/ntfy:/var/cache/ntfy"
+            - "/etc/ntfy:/etc/ntfy"
+          restart: unless-stopped
+
+
     autoheal: &AUTOHEAL
       services:
         autoheal:
@@ -153,16 +166,6 @@
     traefik_websecure_entrypoint_name: "websecure"
 
     composefile:
-      # configs:
-      #   traefik:
-      #     content: |
-      #       ---
-      #       tls:
-      #         certificates:
-      #           - certFile: /certs/local.crt
-      #             keyFile:  /certs/local.key
-      #       ...
-
       networks:
         proxy:
           name: proxy
@@ -174,10 +177,7 @@
           restart: unless-stopped
           security_opt:
             - no-new-privileges:true
-          # configs:
-          #   - "traefik:/dynamic/tls.yaml"
           networks:
-           # Connect to the 'traefik_proxy' overlay network for inter-container communication across nodes
             - proxy
           ports:
             - "80:80"
@@ -196,10 +196,6 @@
             - "--entrypoints.websecure.address=:443"
             - "--entrypoints.websecure.http.tls=true"
 
-            # Attach the static configuration tls.yaml file that contains the tls
-            # configuration settings
-            # - "--providers.file.filename=/dynamic/tls.yaml"
-
             # Providers
             - "--providers.docker=true"
             - "--providers.docker.exposedbydefault=false"
@@ -215,7 +211,7 @@
             - "--metrics.prometheus=true"
 
             - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.tlschallenge=true"
-            - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.email={{ traefik_acme_challenge_email }}"
+            - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.email={{ secrets.traefik_acme_challenge_email }}"
             - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.storage=/acme.json"
           # Traefik Dynamic configuration via Docker labels
           labels:
@@ -241,10 +237,10 @@
             - proxy
           labels:
             - "traefik.enable=true"
+            - "traefik.http.routers.whoami.tls=true"
             - "traefik.http.routers.whoami.rule=Host(`{{ host_or_fqdn }}`)"
             - "traefik.http.routers.whoami.entrypoints=websecure"
-            - "traefik.http.routers.whoami.tls=true"
-
+            - "traefik.http.routers.{{ traefik_router_name }}.tls.certresolver={{ traefik_resolver_name }}"
 
     composefile_old:
       <<: *PROXY_NETWORK
@@ -274,7 +270,7 @@
             - "--entrypoints.{{ traefik_web_entrypoint_name }}.address=:80"
             - "--entrypoints.{{ traefik_websecure_entrypoint_name }}.address=:443"
             - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.tlschallenge=true"
-            - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.email={{ traefik_acme_challenge_email }}"
+            - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.email={{ secrets.traefik_acme_challenge_email }}"
             - "--certificatesresolvers.{{ traefik_resolver_name }}.acme.storage=/acme.json"
           labels:
             - "traefik.enable=false"
@@ -293,17 +289,7 @@
             - "traefik.http.routers.{{ traefik_router_name }}.entrypoints={{ traefik_websecure_entrypoint_name }}"
             - "traefik.http.routers.{{ traefik_router_name }}.service={{ traefik_service_name }}"
             - "traefik.http.routers.{{ traefik_router_name }}.tls.certresolver={{ traefik_resolver_name }}"
-            - "traefik.http.middlewares.{{ traefik_middleware_name }}.basicauth.users={{ http_secret }}"
-
-        ntfy:
-          image: "binwiederhier/ntfy"
-          container_name: ntfy
-          command:
-            - "serve"
-          volumes:
-            - "/var/cache/ntfy:/var/cache/ntfy"
-            - "/etc/ntfy:/etc/ntfy"
-          restart: unless-stopped
+            - "traefik.http.middlewares.{{ traefik_middleware_name }}.basicauth.users={{ secrets.http_secret }}"
 
           # labels:
           #   - "traefik.enable=true"
@@ -315,35 +301,36 @@
           # ports:
           #   - 10080:80
 
-    http_secret: !vault |
-      $ANSIBLE_VAULT;1.1;AES256
-      34656131653833313831363037396164356331626162616464616330393766663030306632363039
-      3234613137373562663664633562363031326162333735320a633230383366353130313037613939
-      63666234613965303464643566643734343630363664383139303138663363366164303964633462
-      3635663830313531300a386433366633316230356666623735323435303961633064353461373538
-      32306634636339383433333838366364393239353263646235646465383462323632343937303739
-      33646566623439613732326161653937343736313532323337303935663435373435633566316635
-      36396237623562646636326631633661316462376331336464393535363138653634663530336465
-      34353066353266363336326464313736616336613837313431316465393039346664623538383235
-      63333336663435643335383434366235396561383235626637666434663139323361
+    secrets:
+      http_secret: !vault |
+        $ANSIBLE_VAULT;1.1;AES256
+        34656131653833313831363037396164356331626162616464616330393766663030306632363039
+        3234613137373562663664633562363031326162333735320a633230383366353130313037613939
+        63666234613965303464643566643734343630363664383139303138663363366164303964633462
+        3635663830313531300a386433366633316230356666623735323435303961633064353461373538
+        32306634636339383433333838366364393239353263646235646465383462323632343937303739
+        33646566623439613732326161653937343736313532323337303935663435373435633566316635
+        36396237623562646636326631633661316462376331336464393535363138653634663530336465
+        34353066353266363336326464313736616336613837313431316465393039346664623538383235
+        63333336663435643335383434366235396561383235626637666434663139323361
 
-    traefik_acme_challenge_email: !vault |
-      $ANSIBLE_VAULT;1.1;AES256
-      63313963646165633166333438393564333538636132363030643833643266663564303263363166
-      3863646531656337653833613532653066353865656362650a346331353165663933626639303737
-      34386434316666663434653830656537346430633234313930363330343032393835623864653866
-      3535613263353033660a326561373438633562323332626665333965663931366332633336363638
-      65613431353533336565646164306331616230643638396430396234363035353162
+      traefik_acme_challenge_email: !vault |
+        $ANSIBLE_VAULT;1.1;AES256
+        63313963646165633166333438393564333538636132363030643833643266663564303263363166
+        3863646531656337653833613532653066353865656362650a346331353165663933626639303737
+        34386434316666663434653830656537346430633234313930363330343032393835623864653866
+        3535613263353033660a326561373438633562323332626665333965663931366332633336363638
+        65613431353533336565646164306331616230643638396430396234363035353162
 
-    ts_auth_key: !vault |
-      $ANSIBLE_VAULT;1.1;AES256
-      36373131643239643731613633336436363530306365366436616334643662383838366539656263
-      3936373864336237316130663936643537313465323134620a666262323639363462313463326361
-      32373163646536343830643533643866386463366232643765306534626437393131633130666164
-      3834633835353734370a613739333731346134646136303966626233316637393766373966303537
-      34313630643339656530636435323234333939613433663531653830386365333562383837623735
-      63666564613866643061326638353831313462616431366361666661393034643133346461333436
-      326165646534613063333234373335316638
+      ts_auth_key: !vault |
+        $ANSIBLE_VAULT;1.1;AES256
+        36373131643239643731613633336436363530306365366436616334643662383838366539656263
+        3936373864336237316130663936643537313465323134620a666262323639363462313463326361
+        32373163646536343830643533643866386463366232643765306534626437393131633130666164
+        3834633835353734370a613739333731346134646136303966626233316637393766373966303537
+        34313630643339656530636435323234333939613433663531653830386365333562383837623735
+        63666564613866643061326638353831313462616431366361666661393034643133346461333436
+        326165646534613063333234373335316638
 
 - name: UFW
   hosts: 'ubuntu-vm'
