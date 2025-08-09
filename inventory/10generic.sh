@@ -275,7 +275,7 @@ if TODO; then
   fi
 fi
 
-if [ -s "$FACT_BOOTSTRAP_COMPLETE_TAG_FILE" ]; then
+if [ -f "$FACT_BOOTSTRAP_COMPLETE_TAG_FILE" ]; then
   FACT_BOOTSTRAP_COMPLETE=true
 fi
 
