@@ -13,19 +13,14 @@
     - name: cloud-init cleanup
       include_tasks: tasks/cleanup.yml
 
+    - name: cron
+      include_tasks: tasks/cron.yml
+
     - name: "~/.local/bin"
       ansible.builtin.file:
         mode: '0700'
         dest: '{{ ansible_user_dir }}/.local/bin'
         state: 'directory'
-
-    - name: "Create 'requirements.yml'"
-      ignore_errors: true
-      ansible.builtin.file:
-        mode: '0644'
-        dest: '/opt/ansible-pull/requirements.yml'
-        content: |
-          {{ requirements_yml }}
 
     - name: "Ansible pull shortcut '~/pull'"
       ignore_errors: true
@@ -38,20 +33,29 @@
 
     - no_log: true
       ignore_errors: true
-      when: bootstrap_requirements_yml is defined
       ansible.builtin.copy:
         mode: '0750'
         dest: '/opt/ansible-pull/'
         state: 'directory'
 
-    - name: "Copy 'requirements.yml'"
+    - name: "Create 'requirements.yml'"
       ignore_errors: false
-      when: bootstrap_requirements_yml is defined
+      when: requirements_yml is defined
       ansible.builtin.copy:
         mode: '0644'
         dest: '/opt/ansible-pull/requirements.yml'
         content: |
-          {{ bootstrap_requirements_yml is defined | to_yaml }}
+          {{ requirements_yml is defined | to_yaml }}
+
+    - name: TODO authd
+      tags:
+        - never
+      ansible.builtin.shell: >-
+        add-apt-repository -y ppa:ubuntu-enterprise-desktop/authd
+        && apt update
+        && apt upgrade -y
+        && apt-get install -y authd
+        && python3 -m pips install pydo
 
     - include_tasks: tasks/pkl.yml
 

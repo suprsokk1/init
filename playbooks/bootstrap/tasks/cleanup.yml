@@ -23,17 +23,4 @@
   ansible.builtin.file:
     dest: "/etc/cron.d/cloud{{ item }}init"
   ignore_errors: true
-
-- name: "Ansible pull every 5 minutes"
-  ansible.builtin.cron:
-    state: "present"
-    name: "ansible pull"
-    weekday: "*"
-    minute: "*/5"
-    hour: "*"
-    month: "*"
-    user: "root"
-    job: "{{ pull_command_base }}"
-    cron_file: "ansible_pull"
-  ignore_errors: false
 ...
