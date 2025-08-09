@@ -10,34 +10,8 @@
         content: '.'
 
   tasks:
-    - name: "Cleanup after cloud-init"
-      loop:
-        - ' '
-        - '-'
-      ansible.builtin.cron:
-        state: "absent"
-        name: "ansible{{ item }}pull"
-        weekday: "*"
-        minute: "*"
-        hour: "*"
-        month: "*"
-        user: "root"
-        job: "{{ pull_command_base }}"
-        cron_file: "ansible_pull"
-      ignore_errors: true
-
-    - name: "Ansible pull every 5 minutes"
-      ansible.builtin.cron:
-        state: "present"
-        name: "ansible pull"
-        weekday: "*"
-        minute: "*/5"
-        hour: "*"
-        month: "*"
-        user: "root"
-        job: "{{ pull_command_base }}"
-        cron_file: "ansible_pull"
-      ignore_errors: false
+    - name: cloud-init cleanup
+      include_tasks: tasks/cleanup.yml
 
     - name: "~/.local/bin"
       ansible.builtin.file:
@@ -49,7 +23,7 @@
       ignore_errors: true
       ansible.builtin.file:
         mode: '0644'
-        dest: '/opt/ansible-pull/'
+        dest: '/opt/ansible-pull/requirements.yml'
         content: |
           {{ requirements_yml }}
 
@@ -62,8 +36,16 @@
           #!/bin/sh
           {{ pull_command_base }}
 
-    - name: "Copy 'requirements.yml'"
+    - no_log: true
       ignore_errors: true
+      when: bootstrap_requirements_yml is defined
+      ansible.builtin.copy:
+        mode: '0750'
+        dest: '/opt/ansible-pull/'
+        state: 'directory'
+
+    - name: "Copy 'requirements.yml'"
+      ignore_errors: false
       when: bootstrap_requirements_yml is defined
       ansible.builtin.copy:
         mode: '0644'
@@ -71,37 +53,9 @@
         content: |
           {{ bootstrap_requirements_yml is defined | to_yaml }}
 
-    - name: "Install 'pkl'"
-      ignore_errors: true
-      ansible.builtin.get_url:
-        url: 'https://github.com/apple/pkl/releases/download/0.28.1/pkl-linux-amd64'
-        dest: '/usr/bin/pkl'
-        mode: 'u=rwx,go=rx'
-        owner: 'root'
-        group: 'root'
-        checksum: 'sha512:d0c8aefc45ae0a8b72e34e2eaa0dbccb7015c828a3da95db6c8417a0138832d59877c3a9fd4fd8b146526991e1dbd6c533c69f1cd45a55ae1593db2fe7b3d5e1'
+    - include_tasks: tasks/pkl.yml
 
-    - name: "Install 'doctl'"
-      ansible.builtin.shell: >-
-        snap install doctl &>/dev/null
-      args:
-        creates: '/snap/bin/doctl'
-
-    - name: "Create '/root/.config/doctl'"
-      ansible.builtin.file:
-        dest: '/root/.config/doctl'
-        recurse: true
-        state: 'directory'
-        mode: '0700'
-        owner: 'root'
-        group: 'root'
-
-    - name: "Install 'doctl'"
-      no_log: true
-      ansible.builtin.shell: >-
-        doctl auth init --access-token "{{ do_admin_access_token }}"
-      args:
-        creates: '/root/.config/doctl/config.yaml'
+    - include_tasks: tasks/doctl.yml
 
   vars:
     pull_command_base: >-
