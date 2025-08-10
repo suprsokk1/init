@@ -9,18 +9,17 @@
   tasks:
     - name: Execute shell commands on targets
       ansible.builtin.shell: |
-        if ! pveum role list --no-border | grep -w --silent "{{ terraform.role }}"
+        if ! pveum role list --noborder | grep -w --silent "{{ terraform.role }}"
         then
           pveum role add {{ terraform.role }} -privs "{{ terraform.privs }}"
         fi
 
-        if ! pveum user list --no-border | grep -w --silent "{{ terraform.user }}"
+        if ! pveum user list --noborder | grep -w --silent "{{ terraform.user }}"
         then
            pveum user add {{ terraform.user  }} --password {{ terraform.password }}
         fi
 
         pveum aclmod / -user {{ terraform.user }} -role {{ terraform.role }} || true
-
 
   vars:
     # container_id: 101
