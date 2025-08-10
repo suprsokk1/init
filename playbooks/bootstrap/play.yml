@@ -27,6 +27,8 @@
         state: 'directory'
 
     - name: Ansible config file
+      tags:
+        - never                 # FIXME
       ansible.builtin.copy:
         dest: '/etc/ansible/ansible.cfg'
         mode: '0644'
