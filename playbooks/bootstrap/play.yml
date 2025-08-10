@@ -21,6 +21,11 @@
     - name: cron
       include_tasks: tasks/cron.yml
 
+    - ansible.builtin.file:
+        dest: '/etc/ansible'
+        mode: '0755'
+        state: 'directory'
+
     - name: Ansible config file
       ansible.builtin.copy:
         dest: '/etc/ansible/ansible.cfg'
