@@ -180,7 +180,7 @@ fi
 
 wait
 
-if command /usr/bin/env LC_ALL=C grep -w -- 'Proxmox' /etc/issue; then
+if command /usr/bin/env LC_ALL=C grep --silent -w -- 'Proxmox' /etc/issue; then
   FACT_PROXMOX=true
 fi
 
