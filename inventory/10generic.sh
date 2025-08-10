@@ -54,8 +54,15 @@ declare FACT_PUBLIC_IP
 declare JSON_WHOAMI
 declare FACT_BOOTSTRAP_COMPLETE
 declare FACT_BOOTSTRAP_COMPLETE_TAG_FILE
+declare FACT_IS_VIRTUAL
+declare FACT_IS_CONTAINER
+declare FACT_IS_PHYSICAL
 
 FACT_ACCESS="user"              # DEFAULT
+FACT_IS_VIRTUAL=false
+FACT_IS_CONTAINER=false
+FACT_IS_PHYSICAL=false
+
 
 if TODO; then
   declare TEST
@@ -186,10 +193,13 @@ fi
 
 if command systemd-detect-virt --container --quiet; then
   VIRT=containers
+  FACT_IS_CONTAINER=true
 elif command systemd-detect-virt --vm --quiet; then
   VIRT=virtual
+  FACT_IS_VIRTUAL=true
 else
   VIRT=physical
+  FACT_IS_PHYSICAL=true
 fi
 
 if [ -s "$HOME"/.ssh/known_hosts ]; then
@@ -303,6 +313,11 @@ $(if [ -s FACT_FQDN ]; then printf '"%s": "%s",' fqdn $(command xargs -a FACT_FQ
 "galaxy": {
   "collections": [ ],
   "roles": [ ]
+},
+"is": {
+   "virtual": ${FACT_IS_VIRTUAL},
+   "physical": ${FACT_IS_PHYSICAL},
+   "container": ${FACT_IS_CONTAINER}
 }
 JSON_VARS_EOF
 
