@@ -7,31 +7,34 @@
   become_user: root
   run_once: true
   tasks:
-    - name: Execute shell commands on targets
+    - when: terraform.role not in roles
+      ansible.builtin.shell: >-
+        pveum role add {{ terraform.role }} -privs "{{ terraform.privs }}"
+
+    - when: terraform.user not in users
+      ansible.builtin.shell: >-
+        pveum user add {{ terraform.user }} --password {{ terraform.password }}
+
+    - when: terraform.user not in users
       ansible.builtin.shell: |
-        if ! pveum role list --noborder | grep -w --silent "{{ terraform.role }}"
-        then
-          pveum role add {{ terraform.role }} -privs "{{ terraform.privs }}"
-        fi
-
-        if ! pveum user list --noborder | grep -w --silent "{{ terraform.user }}"
-        then
-           pveum user add {{ terraform.user  }} --password {{ terraform.password }}
-        fi
-
         pveum aclmod / -user {{ terraform.user }} -role {{ terraform.role }} || true
 
   vars:
-    # container_id: 101
+    roles: >-
+      {{ proxmox_roles | map(attribute='roleid') }}
+
+    users: >-
+      {{ proxmox_users | map(attribute='userid') }}
+
     terraform:
       user: "terraform-prov@pve"
       role: "TerraformProv"
       privs: >-
         Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit
         Pool.Allocate Sys.Audit Sys.Console Sys.Modify VM.Allocate VM.Audit
-        VM.Clone VM.Config.CDROM VM.Config.Cloudinit VM.Config.CPU VM.Config.Disk
-        VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options
-        VM.Migrate VM.Monitor VM.PowerMgmt SDN.Use
+        VM.Clone VM.Config.CDROM VM.Config.Cloudinit VM.Config.CPU
+        VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network
+        VM.Config.Options VM.Migrate VM.Monitor VM.PowerMgmt SDN.Use
       password: !vault |
                 $ANSIBLE_VAULT;1.1;AES256
                 30613237653361313365313238353137333839373466656334623665643334643565303965333832
