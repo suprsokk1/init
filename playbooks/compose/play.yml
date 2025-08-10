@@ -1,6 +1,6 @@
 ---
 - name: COMPOSE
-  hosts: 'virtual'
+  hosts: 'vps'
   connection: local
   gather_facts: false
   become: false
