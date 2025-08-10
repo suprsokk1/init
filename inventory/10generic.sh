@@ -194,8 +194,8 @@ if command /usr/bin/env LC_ALL=C grep --perl-regexp --silent -- '\bProxmox\b' /e
   if [ -s /etc/pve/.vmlist ]; then
      mapfile FACT_PROXMOX_VMLIST < /etc/pve/.vmlist
   fi
-   mapfile FACT_PROXMOX_ROLES < <(pveum role list --noborder | awk '{print $1}')
-   mapfile FACT_PROXMOX_USERS < <(pveum user list --noborder | awk '{print $1}')
+   mapfile FACT_PROXMOX_ROLES < <(pveum role list --output-format json)
+   mapfile FACT_PROXMOX_USERS < <(pveum user list --output-format json)
 fi
 
 if command systemd-detect-virt --container --quiet; then
@@ -333,21 +333,14 @@ mapfile JSON_VARS < <(
     public_ip                    $(command xargs -a FACT_PUBLIC_IP)
 
   echo -en ','
-
   if ${FACT_PROXMOX:-false}; then
-  {
-    echo -en '"users":'
-    print_json_array "${FACT_PROXMOX_USERS[@]}"
-    echo -en ','
-    echo -en '"roles":'
-    print_json_array "${FACT_PROXMOX_ROLES[@]}"
-  } | wrap_object proxmox
-  echo -en ','
+  cat<<EOF
+"proxmox_users": ${FACT_PROXMOX_USERS[@]},
+"proxmox_roles":${FACT_PROXMOX_ROLES[@]},
+EOF
   fi
 
-
   # print_json_mapping
-
   cat <<JSON_EOF
 $(printf '"%s": true,\n' $(ip_address_group_names))
 "ifconfig.net": $(if test -s JSON_WHOAMI; then command cat JSON_WHOAMI; else echo '[]'; fi),
