@@ -314,7 +314,7 @@ mapfile JSON_VARS < <(
 
     if ${FACT_PROXMOX:-false}; then
       {
-        _json_mapping \
+        json_mapping \
           users "$(print_array \"${FACT_PROXMOX_USERS[@]}\")" \
           roles "$(print_array \"${FACT_PROXMOX_ROLES[@]}\")"
       } | wrap_object proxmox
