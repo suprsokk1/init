@@ -1,0 +1,45 @@
+---
+- name: PROXMOX
+  hosts: 'proxmox'
+  connection: local
+  gather_facts: false
+  become: false
+  become_user: root
+  run_once: true
+  tasks:
+    - name: Execute shell commands on targets
+      ansible.builtin.shell: |
+        if ! pveum role list --no-border | grep -w --silent "{{ terraform.role }}"
+        then
+          pveum role add {{ terraform.role }} -privs "{{ terraform.privs }}"
+        fi
+
+        if ! pveum user list --no-border | grep -w --silent "{{ terraform.user }}"
+        then
+           pveum user add {{ terraform.user  }} --password {{ terraform.password }}
+        fi
+
+        pveum aclmod / -user {{ terraform.user }} -role {{ terraform.role }} || true
+
+
+  vars:
+    # container_id: 101
+    terraform:
+      user: "terraform-prov@pve"
+      role: "TerraformProv"
+      privs: >-
+        Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit
+        Pool.Allocate Sys.Audit Sys.Console Sys.Modify VM.Allocate VM.Audit
+        VM.Clone VM.Config.CDROM VM.Config.Cloudinit VM.Config.CPU VM.Config.Disk
+        VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options
+        VM.Migrate VM.Monitor VM.PowerMgmt SDN.Use
+      password: !vault |
+                $ANSIBLE_VAULT;1.1;AES256
+                30613237653361313365313238353137333839373466656334623665643334643565303965333832
+                3431336230386264353263303538366435346438646338640a383538323934303834326238636666
+                34636434646631653437313661383539363564633037346436346235636464353266633166313663
+                3735653232616166330a633133356538306631613335356236303133346663386136313861333730
+                33643161373464653639326462666162376664623563663037313962323932666432
+
+
+...
