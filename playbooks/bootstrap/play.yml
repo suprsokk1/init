@@ -49,14 +49,12 @@
           #!/bin/sh
           {{ pull_command_base }}
 
-    - ignore_errors: false
-      ansible.builtin.copy:
+    - ansible.builtin.file:
         mode: '0750'
         dest: '/opt'
         state: 'directory'
 
-    - ignore_errors: false
-      ansible.builtin.copy:
+    - ansible.builtin.file:
         mode: '0750'
         dest: '/opt/ansible-pull'
         state: 'directory'
