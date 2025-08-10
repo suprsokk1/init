@@ -1,10 +1,11 @@
 #!/bin/bash
 getopt --name="${0##*/}" --longoptions=list,host: -- "$@" >/dev/null || exit
 
-if false; then
+if true; then
   if command -v jq &>/dev/null; then
     if ! ((NEST)); then
-      env NEST=1 bash "$0" "$@" | command jq -M
+      # env NEST=1 bash "$0" "$@" | command jq -M
+      env NEST=1 bash "$0" "$@" | command python -m json.tool --indent=2
       exit
     fi
   fi
@@ -12,7 +13,6 @@ fi
 
 declare -x GIT_WORK_TREE
 read -r GIT_WORK_TREE < <(command git rev-parse --show-toplevel)
-
 
 read -r WORKDIR < <(command date  '+/dev/shm/%Y/%m/%d/%H')
 command mkdir -p -- "$WORKDIR" &>/dev/null
@@ -39,14 +39,15 @@ set -o allexport ${DEBUG:+-s xtrace}
 
 declare -A REQUIRE_EXECUTABLES
 declare -a INSTALLED_EXECUTABLES
+declare -a FACT_PROXMOX_VMLIST
 declare FACT_PROXMOX
 declare FACT_PULL_URL
 declare FACT_PULL_BRANCH
 declare FACT_PULL_USER
 declare FACT_PULL_REPO
-declare FACT_DISTRO
 declare FACT_DISTRO_NAME
 declare FACT_DISTRO_VERSION
+declare FACT_DISTRO
 declare FACT_CHASSIS
 declare FACT_ACCESS
 declare FACT_KERNEL
@@ -58,11 +59,13 @@ declare FACT_IS_VIRTUAL
 declare FACT_IS_CONTAINER
 declare FACT_IS_PHYSICAL
 
-FACT_ACCESS="user"              # DEFAULT
+FACT_BOOTSTRAP_COMPLETE_TAG_FILE="/BOOTSTRAP_COMPLETE.TAG"
+FACT_BOOTSTRAP_COMPLETE=false
+FACT_ACCESS="user"
 FACT_IS_VIRTUAL=false
 FACT_IS_CONTAINER=false
 FACT_IS_PHYSICAL=false
-
+FACT_PROXMOX=false
 
 if TODO; then
   declare TEST
@@ -131,9 +134,6 @@ read -r FACT_PULL_URL    < <(command git -C $OLDPWD remote get-url origin)
 read -r FACT_PULL_BRANCH < <(command git -C $OLDPWD rev-parse --abbrev-ref HEAD)
 read -r FACT_CHASSIS     < <(command hostnamectl chassis)
 
-FACT_BOOTSTRAP_COMPLETE_TAG_FILE="/BOOTSTRAP_COMPLETE.TAG"
-FACT_BOOTSTRAP_COMPLETE=false
-
 read -r FACT_UID < <(command id -u)
 read -r FACT_GID < <(command id -g)
 
@@ -187,8 +187,11 @@ fi
 
 wait
 
-if command /usr/bin/env LC_ALL=C grep --silent -w -- 'Proxmox' /etc/issue; then
+if command /usr/bin/env LC_ALL=C grep --perl-regexp --silent -- '\bProxmox\b' /etc/issue; then
   FACT_PROXMOX=true
+  if [ -s /etc/pve/.vmlist ]; then
+     mapfile FACT_PROXMOX_VMLIST < /etc/pve/.vmlist
+  fi
 fi
 
 if command systemd-detect-virt --container --quiet; then
@@ -232,56 +235,49 @@ print_ssh_keys() {
     -printf '",' |
     command sed -zE 's#,$##'
 }
+export -f print_ssh_keys
 
-print_group() {
-  # local IFS
-  # IFS=$'\x22'"$IFS"
-  local group
-  group="$*"
-  cat <<LOOP_LIST_LONGOPTION_EOF
-  "${group//\x22/}": {
-    "hosts": ["${HOSTNAME}"],
-    "vars": {
-      ${JSON_VARS[*]}
-    }
-  }
-LOOP_LIST_LONGOPTION_EOF
+wrap_object() {
+  case $# in
+    (1) printf '"%s":' "$1" ;;
+    (0) ;;
+    (*) exit 1
+  esac
+
+  /usr/bin/sed -Ez 's#.*#{&}#'
 }
+export -f wrap_object
 
 print_json_mapping() {
-  local fact
-  local i
-  i=0
-  count=$#
-
-  for var in "$@"; do
-    if ! [ -n "${!var}" ]; then
-      continue
+    local count
+    count=$#
+    if ! ((count % 2 == 0)); then
+        exit 1
     fi
 
-    printf '"%s": "%s"' "${var,,}" "${!var}"
-    if ((++i < count)) || true; then
-      echo -en ,
-    fi
-    echo
-  done
+    while true; do
+        case x"$2" in
+          ( x\[*\] ) printf '"%s": %s' "$1" "$2" ;;
+          ( x\{*\} ) printf '"%s": %s' "$1" "$2" ;;
+          ( x* )     printf '"%s": "%s"' "$1" "$2";;
+        esac
+        shift 2
+        if [ -n "$*" ]; then
+            echo -en ','
+        else
+            break
+        fi
+    done
 }
+export -f print_json_mapping
 
-case "$VIRT" in                 # FIXME
-  ( virtual )
-    mapfile JSON_VARS_VIRTUAL  <<VIRTUAL_EOF
-"ansible_env": {
-$(if [ -s TXT_DO_API_TOKEN ]; then printf '"%s": "%s",' DO_API_TOKEN $(command xargs -a TXT_DO_API_TOKEN); fi)"ANSIBLE_VAULT_PASSWORD_FILE": "vault-virtual-password"
-},
-VIRTUAL_EOF
-    ;;
-
-  ( * )
-    mapfile JSON_VARS_VIRTUAL  <<DEFAULT_EOF
-"ansible_env": {
-$(if [ -s TXT_DO_API_TOKEN ]; then printf '"%s": "%s",' DO_API_TOKEN $(command xargs -a TXT_DO_API_TOKEN); fi)"ANSIBLE_VAULT_PASSWORD_FILE": "vault-default-password"},
-DEFAULT_EOF
-esac
+print_group() {
+  set - ${1//#[\x22\x0a\x09]/}
+  print_json_mapping \
+    hosts "[\"${HOSTNAME}\"]" \
+    vars  "{${JSON_VARS[*]}}" | wrap_object "$1"
+}
+export -f print_group
 
 if TODO; then
   if command -v dig &>/dev/null; then
@@ -293,10 +289,39 @@ if [ -f "$FACT_BOOTSTRAP_COMPLETE_TAG_FILE" ]; then
   FACT_BOOTSTRAP_COMPLETE=true
 fi
 
-# $(print_json_mapping "${FACTS[@]}") # FIXME
+mapfile JSON_VARS < <(
+  print_json_mapping \
+    ansible_user_id              $USER \
+    ansible_user_dir             $HOME \
+    ansible_connection           local \
+    pull_user                    $FACT_PULL_USER \
+    pull_repo                    $FACT_PULL_REPO \
+    pull_url                     $FACT_PULL_URL \
+    pull_branch                  $FACT_PULL_BRANCH \
+    bootstrap_complete_tag_file  $FACT_BOOTSTRAP_COMPLETE_TAG_FILE \
+    install_packages             '["jq"]' \
+    fqdn                         $(command xargs -a FACT_FQDN) \
+    public_ip                    $(command xargs -a FACT_PUBLIC_IP)
 
-mapfile JSON_VARS <<-JSON_VARS_EOF
-${JSON_VARS_VIRTUAL:+${JSON_VARS_VIRTUAL[@]}}"ansible_user_id": "${USER}",
+  echo -en ','
+  cat <<JSON_EOF
+$(printf '"%s": true,\n' $(ip_address_group_names))
+"ifconfig.net": $(if test -s JSON_WHOAMI; then command cat JSON_WHOAMI; else echo '[]'; fi),
+"ssh_keys":[ $(print_ssh_keys) ],
+"galaxy": {
+  "collections": [ ],
+  "roles": [ ]
+},
+"is": {
+   "virtual": ${FACT_IS_VIRTUAL},
+   "physical": ${FACT_IS_PHYSICAL},
+   "container": ${FACT_IS_CONTAINER}
+}
+JSON_EOF
+)
+
+mapfile JSON_VARS_ALT <<-JSON_VARS_EOF
+"ansible_user_id": "${USER}",
 "ansible_user_dir": "${HOME}",
 "ansible_connection": "local",
 "pull_user": "${FACT_PULL_USER}",
@@ -369,14 +394,12 @@ ${FACT_DISTRO}_${VIRT}_${FACT_ACCESS}
 ${FACT_DISTRO}_${FACT_CHASSIS}_${FACT_ACCESS}
 EOF
 
-
-
-if ! $FACT_BOOTSTRAP_COMPLETE; then
-GROUP_NAMES=("new")
+if ! ${FACT_BOOTSTRAP_COMPLETE:-false}; then
+  GROUP_NAMES+=("new")
 fi
 
-if $FACT_PROXMOX; then
-GROUP_NAMES=("proxmox")
+if ${FACT_PROXMOX:-false}; then
+  GROUP_NAMES+=("proxmox")
 fi
 
 while [ -n "$*" ]; do
@@ -386,7 +409,7 @@ case "$1" in
     cat <<-LIST_LONGOPTION_EOF
 {
  "all": {
-    "children": [ $(join , $(quote ${GROUP_NAMES[*]})) ]
+    "children": [$(join , $(quote ${GROUP_NAMES[*]}))]
  },
  "local": {
     "hosts": [ "localhost" ],
