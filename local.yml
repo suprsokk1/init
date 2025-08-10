@@ -8,9 +8,6 @@
 - name: Laptop setup
   import_playbook: playbooks/laptop/play.yml
 
-- name: Fedora 42
-  ansible.builtin.import_playbook: playbooks/fedora42/play.yml
-
 - name: Proxmox
   ansible.builtin.import_playbook: playbooks/proxmox/play.yml
 ...
