@@ -334,9 +334,11 @@ mapfile JSON_VARS < <(
 
     if ${FACT_PROXMOX:-false}; then
       {
-        print_json_mapping \
-          users $(printf '%q' $(print_array ${FACT_PROXMOX_USERS[@]})) \
-          roles $(printf '%q' $(print_array $FACT_PROXMOX_ROLES[@]))
+        echo -en '"users":'
+        print_array "${FACT_PROXMOX_USERS[@]}"
+        echo -en ','
+        echo -en '"roles":'
+        print_array "${FACT_PROXMOX_ROLES[@]}"
       } | wrap_object proxmox
     fi
 
