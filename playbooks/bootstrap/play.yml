@@ -22,8 +22,9 @@
       include_tasks: tasks/cron.yml
 
     - name: Ansible config file
-      ansible.builtint.copy:
-        path: '/etc/ansible/ansible.cfg'
+      ansible.builtin.copy:
+        dest: '/etc/ansible/ansible.cfg'
+        mode: '0644'
         content: |
           [defaults]
           vault_password_file=/opt/vault-password-file
@@ -111,5 +112,4 @@
       35353864303837326362386638316462393136336637303966393965373063613366653336363361
       37343266336362396230626335643337343837386332313761373962663463613562323534323238
       33616132656633616336
-
 ...
