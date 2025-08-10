@@ -332,15 +332,15 @@ mapfile JSON_VARS < <(
     fqdn                         $(command xargs -a FACT_FQDN) \
     public_ip                    $(command xargs -a FACT_PUBLIC_IP)
 
-    if ${FACT_PROXMOX:-false}; then
-      {
-        echo -en '"users":'
-        print_array "${FACT_PROXMOX_USERS[@]}"
-        echo -en ','
-        echo -en '"roles":'
-        print_array "${FACT_PROXMOX_ROLES[@]}"
-      } | wrap_object proxmox
-    fi
+  if ${FACT_PROXMOX:-false}; then
+  {
+    echo -en '"users":'
+    print_json_array "${FACT_PROXMOX_USERS[@]}"
+    echo -en ','
+    echo -en '"roles":'
+    print_json_array "${FACT_PROXMOX_ROLES[@]}"
+  } | wrap_object proxmox
+  fi
 
   # print_json_mapping
 
