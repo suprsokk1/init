@@ -334,6 +334,7 @@ mapfile JSON_VARS < <(
 
   if ${FACT_PROXMOX:-false}; then
   {
+    echo -en ','
     echo -en '"users":'
     print_json_array "${FACT_PROXMOX_USERS[@]}"
     echo -en ','
@@ -342,9 +343,9 @@ mapfile JSON_VARS < <(
   } | wrap_object proxmox
   fi
 
+  echo -en ','
   # print_json_mapping
 
-  echo -en ','
   cat <<JSON_EOF
 $(printf '"%s": true,\n' $(ip_address_group_names))
 "ifconfig.net": $(if test -s JSON_WHOAMI; then command cat JSON_WHOAMI; else echo '[]'; fi),
