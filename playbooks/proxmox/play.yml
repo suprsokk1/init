@@ -13,7 +13,7 @@
 
     - when: terraform.user not in users
       ansible.builtin.shell: >-
-        pveum user add {{ terraform.user }} --password {{ terraform.password }}
+        pveum user add {{ terraform.user }} --password '{{ terraform.password }}'
 
     - when: terraform.user not in users
       ansible.builtin.shell: |
