@@ -275,10 +275,30 @@ print_json_mapping() {
 }
 export -f print_json_mapping
 
-print_array() {
-  printf '"%s",' "$@" | /usr/bin/sed -E 's/(.*),/[&]/'
+print_json_array() {
+    local count
+    count=$#
+    if ! ((count % 2 == 0)); then
+        exit 1
+    fi
+    echo -en '['
+    while true; do
+        case x"$1" in
+          ( x\[*\] ) printf '%s'   "$1" ;;
+          ( x\{*\} ) printf '%s'   "$1" ;;
+          ( x* )     printf '"%s"' "$1" ;;
+        esac
+        shift 1
+        if [ -n "$*" ]; then
+            echo -en ','
+        else
+            break
+        fi
+    done
+    echo -en ']'
 }
-export -f print_array
+
+export -f print_json_array
 
 print_group() {
   set - ${1//#[\x22\x0a\x09]/}
@@ -315,8 +335,8 @@ mapfile JSON_VARS < <(
     if ${FACT_PROXMOX:-false}; then
       {
         print_json_mapping \
-          users "$(print_array \"${FACT_PROXMOX_USERS[@]}\")" \
-          roles "$(print_array \"${FACT_PROXMOX_ROLES[@]}\")"
+          users $(print__array ${FACT_PROXMOX_USERS[@]}) \
+          roles $(print_array {$FACT_PROXMOX_ROLES[@]})
       } | wrap_object proxmox
     fi
 
