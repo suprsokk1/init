@@ -1,7 +1,7 @@
 #!/bin/bash
 getopt --name="${0##*/}" --longoptions=list,host: -- "$@" >/dev/null || exit
 
-if true; then
+if false; then
   if command -v jq &>/dev/null; then
     if ! ((NEST)); then
       # env NEST=1 bash "$0" "$@" | command jq -M
