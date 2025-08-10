@@ -49,10 +49,13 @@ declare FACT_DISTRO_NAME
 declare FACT_DISTRO_VERSION
 declare FACT_CHASSIS
 declare FACT_ACCESS
+declare FACT_KERNEL
 declare FACT_PUBLIC_IP
 declare JSON_WHOAMI
 declare FACT_BOOTSTRAP_COMPLETE
 declare FACT_BOOTSTRAP_COMPLETE_TAG_FILE
+
+FACT_ACCESS="user"              # DEFAULT
 
 if TODO; then
   declare TEST
@@ -111,6 +114,7 @@ REQUIRE_EXECUTABLES=(
   ["gron"]=/usr/bin/gron
   ["doctl"]=/snap/bin/doctl
 )
+read -r FACT_KERNEL < <(command uname)
 read -r _ _ _ FACT_PULL_USER FACT_PULL_REPO _ < <(
   command git -C "$OLDPWD" remote get-url origin |
     command sed -E 's#[[:punct:]]+# #g'
@@ -279,9 +283,6 @@ if [ -f "$FACT_BOOTSTRAP_COMPLETE_TAG_FILE" ]; then
   FACT_BOOTSTRAP_COMPLETE=true
 fi
 
-# | command sed -e 's#[^_]+##'
-mapfile FACTS < <(compgen -A 'variable' -X '!FACT_*')
-
 # $(print_json_mapping "${FACTS[@]}") # FIXME
 
 mapfile JSON_VARS <<-JSON_VARS_EOF
@@ -324,7 +325,7 @@ quote() {
 export -f join
 export -f quote
 
-FACT_ACCESS="user"               # DEFAULT
+
 case $(command /usr/bin/id  -u) in
   ( 0 )
   FACT_ACCESS="root"
@@ -338,6 +339,8 @@ esac
 
 mapfile GROUP_NAMES <<EOF
 local
+${FACT_KERNEL}
+${FACT_KERNEL,,}
 ${FACT_ACCESS}
 ${VIRT}
 ${FACT_CHASSIS}
@@ -350,6 +353,8 @@ ${FACT_CHASSIS}_${FACT_DISTRO}_${VIRT}_${FACT_ACCESS}
 ${FACT_DISTRO}_${VIRT}_${FACT_ACCESS}
 ${FACT_DISTRO}_${FACT_CHASSIS}_${FACT_ACCESS}
 EOF
+
+
 
 if ! $FACT_BOOTSTRAP_COMPLETE; then
 GROUP_NAMES=("new")
