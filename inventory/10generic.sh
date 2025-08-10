@@ -36,7 +36,8 @@ __command() {
 }
 
 set -o allexport ${DEBUG:+-s xtrace}
-
+declare -a FACT_PROXMOX_ROLES
+declare -a FACT_PROXMOX_USERS
 declare -A REQUIRE_EXECUTABLES
 declare -a INSTALLED_EXECUTABLES
 declare -a FACT_PROXMOX_VMLIST
@@ -58,6 +59,7 @@ declare FACT_BOOTSTRAP_COMPLETE_TAG_FILE
 declare FACT_IS_VIRTUAL
 declare FACT_IS_CONTAINER
 declare FACT_IS_PHYSICAL
+
 
 FACT_BOOTSTRAP_COMPLETE_TAG_FILE="/BOOTSTRAP_COMPLETE.TAG"
 FACT_BOOTSTRAP_COMPLETE=false
@@ -192,6 +194,8 @@ if command /usr/bin/env LC_ALL=C grep --perl-regexp --silent -- '\bProxmox\b' /e
   if [ -s /etc/pve/.vmlist ]; then
      mapfile FACT_PROXMOX_VMLIST < /etc/pve/.vmlist
   fi
+   mapfile FACT_PROXMOX_ROLES < <(pveum role list --noborder | awk '{print $1}')
+   mapfile FACT_PROXMOX_USERS < <(pveum user list --noborder | awk '{print $1}')
 fi
 
 if command systemd-detect-virt --container --quiet; then
@@ -271,6 +275,11 @@ print_json_mapping() {
 }
 export -f print_json_mapping
 
+print_array() {
+  printf '"%s",' "$@" | /usr/bin/sed -E 's/(.*),/[&]/'
+}
+export -f print_array
+
 print_group() {
   set - ${1//#[\x22\x0a\x09]/}
   print_json_mapping \
@@ -302,6 +311,16 @@ mapfile JSON_VARS < <(
     install_packages             '["jq"]' \
     fqdn                         $(command xargs -a FACT_FQDN) \
     public_ip                    $(command xargs -a FACT_PUBLIC_IP)
+
+    if ${FACT_PROXMOX:-false}; then
+      {
+        _json_mapping \
+          users "$(print_array \"${FACT_PROXMOX_USERS[@]}\")" \
+          roles "$(print_array \"${FACT_PROXMOX_ROLES[@]}\")"
+      } | wrap_object proxmox
+    fi
+
+  # print_json_mapping
 
   echo -en ','
   cat <<JSON_EOF
