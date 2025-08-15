@@ -57,6 +57,9 @@
         data:
           package_upgrade: false
           package_update: true
+          packages:
+            - docker-ce
+            - docker-ce-cli
           apt:
             # deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu   jammy stable
             docker.list:
