@@ -19,54 +19,7 @@
       ansible.builtin.shell: |
         pveum aclmod / -user {{ terraform.user }} -role {{ terraform.role }} || true
 
-    - loop:
-        - debian-12-standard_12.7-1_amd64.tar.zst
-        - ubuntu-24.04-standard_24.04-2_amd64.tar.zst
-      ansible.builtin.get_url:
-        url: >-
-          http://download.proxmox.com/images/system/{{ item }}
-        dest: >-
-          {{ proxmox_lxc_image_dir }}/{{ item }}
-
-    - loop:
-        - 'debian-12-turnkey-ansible_18.0-1_amd64.tar.gz'
-      ansible.builtin.get_url:
-        url: >-
-          http://mirror.turnkeylinux.org/turnkeylinux/images/proxmox/{{ item }}
-        dest: >-
-          {{ proxmox_lxc_image_dir }}/{{ item }}
-
-    - ansible.builtin.file:
-        dest: '/var/lib/vz/snippets'
-        state: 'directory'
-
-    - ansible.builtin.uri:
-        method: GET
-        url: >-
-          https://download.docker.com/linux/ubuntu/gpg
-        return_content: true
-      register: api_response
-
-    - ansible.builtin.copy:
-        dest: '/var/lib/vz/snippets/ubuntu-docker.yml'
-        content: |
-          #cloud-config
-          {{ data | to_yaml }}
-
-      vars:
-        data:
-          package_upgrade: false
-          package_update: true
-          packages:
-            - docker-ce
-            - docker-ce-cli
-          apt:
-            # deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu   jammy stable
-            docker.list:
-              source: >-
-                deb [arch=amd64] https://download.docker.com/linux/ubuntu   jammy stable
-              key: >-
-                {{ api_response.content }}
+    - include_tasks: ./tasks/cloud-init.yml
 
   vars:
     proxmox_lxc_image_dir: >-
