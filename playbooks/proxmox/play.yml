@@ -33,17 +33,16 @@
       copy:
         dest: /usr/share/lxc/config/common.conf.d/10custom.conf
         content: |
-          lxc.hook.pre-start = /var/lib/pve/snippets/custom-lxc-hooks.sh
+          lxc.hook.pre-start = /var/lib/pve/snippets/custom-lxc-hooks
 
     - vars:
         url: >-
           https://raw.githubusercontent.com/{{ pull_user }}/data/refs/heads/master/proxmox/lxc/hooks/script/custom-lxc-hooks
       copy:
-        dest: /var/lib/pve/snippets/custom-lxc-hooks.sh
+        dest: /var/lib/pve/snippets/custom-lxc-hooks
         mode: '0750'
         content: |
           {{ lookup('ansible.builtin.url', url, split_lines=False) }}
-
 
     - include_tasks: ./tasks/cloud-init.yml
 
