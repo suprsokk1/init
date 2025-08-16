@@ -34,7 +34,7 @@
         dest: /usr/share/lxc/config/common.conf.d/10custom.conf
         content: |
           lxc.hook.pre-start = /var/lib/pve/snippets/custom-lxc-hooks
-          lxc.hook.start = /bin/custom-lxc-hooks
+# lxc.hook.start = /bin/custom-lxc-hooks # FIXME
 
     - vars:
         url: >-
