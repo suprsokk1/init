@@ -19,6 +19,32 @@
       ansible.builtin.shell: |
         pveum aclmod / -user {{ terraform.user }} -role {{ terraform.role }} || true
 
+    - name: Download LXC images
+      vars:
+        url: >-
+          https://raw.githubusercontent.com/{{ pull_user }}/data/refs/heads/master/proxmox/lxc/images/download
+      with_items: >-
+        {{ lookup('ansible.builtin.url', url, split_lines=True) | split(",") }}
+      get_url:
+        url: "{{ item }}"
+        dest: "/var/lib/vz/template/cache/{{ item | urlsplit('path') | split('/') | last }}"
+
+    - name: Custom LXC 'pre-start' hook
+      copy:
+        dest: /usr/share/lxc/config/common.conf.d/10custom.conf
+        content: |
+          lxc.hook.pre-start = /var/lib/pve/snippets/custom-lxc-hooks.sh
+
+    - vars:
+        url: >-
+          https://raw.githubusercontent.com/{{ pull_user }}/data/refs/heads/master/proxmox/lxc/hooks/script/custom-lxc-hooks
+      copy:
+        dest: /var/lib/pve/snippets/custom-lxc-hooks.sh
+        mode: '0750'
+        content: |
+          {{ lookup('ansible.builtin.url', url, split_lines=False) }}
+
+
     - include_tasks: ./tasks/cloud-init.yml
 
   vars:
