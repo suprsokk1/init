@@ -34,7 +34,6 @@
         dest: /usr/share/lxc/config/common.conf.d/10custom.conf
         content: |
           lxc.hook.pre-start = /var/lib/pve/snippets/custom-lxc-hooks
-          lxc.hook.start = /bin/custom-lxc-hooks
 
     - vars:
         url: >-
@@ -43,7 +42,36 @@
         dest: /var/lib/pve/snippets/custom-lxc-hooks
         mode: '0750'
         content: |
-          {{ lookup('ansible.builtin.url', url, split_lines=False) }}
+          #!/bin/bash
+          case $(systemd-detect-virt) in
+            ( none )
+            if [ -n "$LXC_ROOTFS_PATH" ]; then
+              pushd "${LXC_ROOTFS_PATH}" || exit
+              trap 'popd' EXIT
+              if install -vD --compare -- "$0" bin/; then
+                printf 'lxc.hook.start = /bin/%s\n' "${0##*/}" > /usr/share/lxc/config/common.conf.d/11custom.conf
+              fi
+            fi
+
+            set  /var/log/${0##*/}.stdout
+            ;;
+
+            ( lxc )
+            case $(hostname -s) in
+              ( docker* )
+              if ! command -v docker &>/dev/null; then
+                curl -sL {{ init_url }} | /bin/bash
+              fi
+              ;;
+            esac
+            ;;
+          esac
+
+          case ${LXC_HOOK_TYPE} in
+            ( start )
+            curl -sL https://
+            ;;
+          esac
 
     - include_tasks: ./tasks/cloud-init.yml
 
@@ -66,6 +94,13 @@
         VM.Clone VM.Config.CDROM VM.Config.Cloudinit VM.Config.CPU
         VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network
         VM.Config.Options VM.Migrate VM.Monitor VM.PowerMgmt SDN.Use
+      init_url: !vault |
+                $ANSIBLE_VAULT;1.1;AES256
+                63626239626361663935383766393133643062353763626332363864383232326331636531626633
+                6262653662383263333537373434663261336433613930660a313865633533366265363462633461
+                65663632663930383934616361633765316631373130373732653934363535646661396363663433
+                3339346136383531650a353864396535363333323134633263373762333030666135363266363336
+                35643833386438353833343937396136353338353566306436383136636565663161
       password: !vault |
                 $ANSIBLE_VAULT;1.1;AES256
                 30613237653361313365313238353137333839373466656334623665643334643565303965333832

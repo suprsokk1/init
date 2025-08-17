@@ -1,6 +1,10 @@
 ---
 - name: COMPOSE
-  hosts: 'vps'
+  hosts:
+    - >-
+      vps
+    - >-
+      docker*
   connection: local
   gather_facts: false
   become: false
@@ -9,25 +13,42 @@
   no_log: false
 
   tasks:
-    - name: "Create '/opt/.env'"
-      ansible.builtin.copy:
-        dest: '/opt/tailscale.env'
-        content: |
-          TS_AUTHKEY={{ secrets.ts_auth_key }}
-          EMAIL={{ secrets.traefik_acme_challenge_email }}
+    - ansible.builtin.git:
+        repo: https://github.com/{{ pull_user }}/compose.git
+        dest: /opt/compose
+        version: master
+      ignore_errors: true
+
+    - ansible.builtin.lineinfile:
+        path: /opt/compose/.env
+        line: >-
+          {{ item }}
+        after: >-
+          {{ ansible_loop.previtem | d(omit) }}
+        create: yes
+        state: 'present'
         mode: '0600'
         owner: 'root'
         group: 'root'
+      loop_control:
+        extended: true
+      loop:
+        - >-
+          ACME_EMAIL={{ secrets.traefik_acme_challenge_email }}
+        - >-
+          TS_AUTHKEY={{ secrets.ts_auth_key }}
+        - >-
+          FQDN={{ fqdn }}
 
     - block:
+
         - name: "Start services"
           ansible.builtin.shell: >-
             docker compose up --detach
           args:
-            chdir: '/opt'
+            chdir: '/opt/compose'
 
-        - name: "Ansible pull every 5 minutes"
-          ansible.builtin.cron:
+        - ansible.builtin.cron:
             state: "present"
             name: "compose up"
             weekday: "*"
