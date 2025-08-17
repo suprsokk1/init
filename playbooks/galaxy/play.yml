@@ -10,10 +10,12 @@
     - vars:
         data:
           roles:
-            - name: 'Cargo'
-              src: 'ssh://git@github.com/{{ pull_user }}/ansible-role-cargo.git'
-              version: master
-              scm: git
+            - name: geerlingguy.docker
+            - name: geerlingguy.pip
+            # - name: 'Cargo'
+            #   src: 'https://github.com/{{ pull_user }}/ansible-role-cargo.git'
+            #   version: master
+            #   scm: git
           collections:
             - name: 'community.general'
             - name: 'community.proxmox'
