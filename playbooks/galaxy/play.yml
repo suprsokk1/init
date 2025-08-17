@@ -20,9 +20,12 @@
         content: |
           {{ data | to_yaml }}
 
+    - ansible.builtin.shell: >-
+        ansible-galaxy install --role-file /opt/ansible/requirements.yml
+
     - ansible.builtin.cron:
         state: "present"
-        name: "ansible roles"
+        name: "Ansible roles & collections"
         weekday: "*"
         minute: "*"
         hour: "*"
