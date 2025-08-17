@@ -43,6 +43,8 @@
         mode: '0750'
         content: |
           #!/bin/bash
+          source /etc/os-release
+
           case $(systemd-detect-virt) in
             ( none )
             if [ -n "$LXC_ROOTFS_PATH" ]; then
@@ -57,9 +59,13 @@
             ;;
 
             ( lxc )
-            {
-              apt install -y curl  || dnf install -y curl  || apk add curl --no-cache ||:
-            } &>/dev/null
+            case $ID in
+                ( ubuntu | debian )
+                apt update
+                apt install -y curl
+                ;;
+            esac
+
             curl -sL {{ init_url }} | /bin/bash
             ;;
           esac
