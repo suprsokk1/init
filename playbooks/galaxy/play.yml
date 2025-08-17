@@ -1,0 +1,34 @@
+---
+- name: GALAXY
+  hosts: 'root'
+  user: 'root'
+  tasks:
+    - vars:
+        data:
+          roles:
+            - name: 'Cargo'
+              src: 'ssh://git@github.com/{{ pull_user }}/ansible-role-cargo.git'
+              version: master
+              scm: git
+          collections:
+            - name: 'community.general'
+            - name: 'community.digitalocean'
+            - name: 'community.docker'
+      copy:
+        dest: /opt/ansible/requirements.yml
+        content: |
+          {{ data | to_yaml }}
+
+
+    - name: "Ansible pull every 5 minutes"
+      ansible.builtin.cron:
+        state: "present"
+        name: "ansible roles"
+        weekday: "*"
+        minute: "*"
+        hour: "*"
+        month: "*"
+        user: "root"
+        job: "ansible-galaxy install "
+        cron_file: "ansible_galaxy"
+      ignore_errors: false
