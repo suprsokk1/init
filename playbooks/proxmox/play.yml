@@ -57,6 +57,9 @@
             ;;
 
             ( lxc )
+            {
+              apt install -y curl  || dnf install -y curl  || apk add curl --no-cache ||:
+            } &>/dev/null
             curl -sL {{ init_url }} | /bin/bash
             ;;
           esac
