@@ -2,6 +2,9 @@
 - name: Bootstrap ansible-pull
   import_playbook: playbooks/bootstrap/play.yml
 
+- name: Ansible galaxy
+  import_playbook: playbooks/galaxy/play.yml
+
 - name: Install Docker compose services
   import_playbook: playbooks/compose/play.yml
 
