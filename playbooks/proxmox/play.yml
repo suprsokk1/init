@@ -62,7 +62,7 @@
             case $ID in
                 ( ubuntu | debian )
                 apt update
-                apt install -y curl
+                apt install -y curl find
                 ;;
             esac
 
