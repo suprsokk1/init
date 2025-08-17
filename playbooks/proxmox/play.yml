@@ -42,8 +42,8 @@
         mode: '0750'
 
     - template:
-        src: lxc-start-hooks
-        dest: /var/lib/pve/snippets/lxc-start-hooks
+        src: lxc-start-hook
+        dest: /var/lib/pve/snippets/lxc-start-hook
         mode: '0750'
 
     - include_tasks: ./tasks/cloud-init.yml
