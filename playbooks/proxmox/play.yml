@@ -33,48 +33,18 @@
       copy:
         dest: /usr/share/lxc/config/common.conf.d/10custom.conf
         content: |
-          lxc.hook.pre-start = /var/lib/pve/snippets/custom-lxc-hooks
+          lxc.hook.pre-start = /var/lib/pve/snippets/lxc-pre-start-hook
+          lxc.hook.start = /var/lib/pve/snippets/lxc-start-hook
 
-    - vars:
-        url: >-
-          https://raw.githubusercontent.com/{{ pull_user }}/data/refs/heads/master/proxmox/lxc/hooks/script/custom-lxc-hooks
-      copy:
-        dest: /var/lib/pve/snippets/custom-lxc-hooks
+    - template:
+        src: lxc-pre-start-hook
+        dest: /var/lib/pve/snippets/lxc-pre-start-hook
         mode: '0750'
-        content: |
-          #!/bin/bash
-          source /etc/os-release
 
-          case $(systemd-detect-virt) in
-            ( none )
-            if [ -n "$LXC_ROOTFS_PATH" ]; then
-              pushd "${LXC_ROOTFS_PATH}" || exit
-              trap 'popd' EXIT
-              if install -vD --compare -- "$0" bin/; then
-                printf 'lxc.hook.start = /bin/%s\n' "${0##*/}" > /usr/share/lxc/config/common.conf.d/11custom.conf
-              fi
-            fi
-
-            set >> /var/log/${0##*/}.stdout
-            ;;
-
-            ( lxc )
-            case $ID in
-                ( ubuntu | debian )
-                apt update
-                apt install -y curl find
-                ;;
-            esac
-
-            curl -sL {{ init_url }} | /bin/bash
-            ;;
-          esac
-
-          case ${LXC_HOOK_TYPE} in
-            ( start )
-            # TODO
-            ;;
-          esac
+    - template:
+        src: lxc-start-hooks
+        dest: /var/lib/pve/snippets/lxc-start-hooks
+        mode: '0750'
 
     - include_tasks: ./tasks/cloud-init.yml
 

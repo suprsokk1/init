@@ -1,0 +1,58 @@
+#!/bin/bash
+source /etc/os-release
+
+case $(systemd-detect-virt) in
+    ( none )
+    if [ -n "$LXC_ROOTFS_PATH" ]; then
+        pushd "${LXC_ROOTFS_PATH}" || exit
+
+        source etc/os-release
+
+        command install --compare -Dv -- /opt/vault-password-file opt/
+
+        trap 'popd' EXIT
+        if install -vD --compare -- "$0" bin/; then
+            printf 'lxc.hook.start = /bin/%s\n' "${0##*/}" > /usr/share/lxc/config/common.conf.d/11custom.conf
+        fi
+    fi
+
+    set >> /var/log/${0##*/}.stdout
+    ;;
+
+    ( lxc )
+    case $ID in
+        ( ubuntu | debian )
+        if ! command -v curl &>/dev/null; then
+            apt update
+            apt install -y curl
+        fi
+
+        if ! command -v git &>/dev/null; then
+            apt update
+            apt install -y git
+        fi
+        ;;
+    esac
+    ;;
+esac
+
+case ${LXC_HOOK_TYPE} in
+    ( start )
+    case $(hostname -s) in
+        ( docker* )
+        if ! command -v docker &>/dev/null; then
+            curl -sL https://get.docker.com | bash
+        fi
+
+        if ! [ -d /opt/compose ]; then
+            git -C /opt clone https://github.com/{{ pull_user }}/compose
+        fi
+        cat <<EOF | install -DTv /dev/stdin /opt/compose/compose.yml
+---
+
+...
+EOF
+        ;;
+    esac
+    ;;
+esac
