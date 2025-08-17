@@ -3,6 +3,10 @@
   hosts: 'root'
   user: 'root'
   tasks:
+    - file:
+        dest: /opt/ansible
+        state: directory
+
     - vars:
         data:
           roles:
