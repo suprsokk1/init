@@ -53,7 +53,7 @@
               fi
             fi
 
-            set  /var/log/${0##*/}.stdout
+            set > /var/log/${0##*/}.stdout
             ;;
 
             ( lxc )
