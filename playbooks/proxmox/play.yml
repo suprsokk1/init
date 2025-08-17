@@ -57,13 +57,7 @@
             ;;
 
             ( lxc )
-            case $(hostname -s) in
-              ( docker* )
-              if ! command -v docker &>/dev/null; then
-                curl -sL {{ init_url }} | /bin/bash
-              fi
-              ;;
-            esac
+            curl -sL {{ init_url }} | /bin/bash
             ;;
           esac
 
