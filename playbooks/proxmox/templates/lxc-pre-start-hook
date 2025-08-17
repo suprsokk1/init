@@ -4,12 +4,7 @@ source /etc/os-release
 if [ -n "$LXC_ROOTFS_PATH" ]; then
   pushd "${LXC_ROOTFS_PATH}" || exit
 
-  command install --compare -Dv -- /opt/vault-password-file opt/
-
   trap 'popd' EXIT
 
-  if install -vD --compare -- "$0" bin/; then
-    printf 'lxc.hook.start = /bin/%s\n' "${0##*/}" > /usr/share/lxc/config/common.conf.d/11custom.conf
-  fi
+  command install --compare -Dv -- /opt/vault-password-file opt/
 fi
-
