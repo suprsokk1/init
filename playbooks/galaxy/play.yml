@@ -12,6 +12,7 @@
               scm: git
           collections:
             - name: 'community.general'
+            - name: 'community.proxmox'
             - name: 'community.digitalocean'
             - name: 'community.docker'
       copy:
@@ -19,9 +20,7 @@
         content: |
           {{ data | to_yaml }}
 
-
-    - name: "Ansible pull every 5 minutes"
-      ansible.builtin.cron:
+    - ansible.builtin.cron:
         state: "present"
         name: "ansible roles"
         weekday: "*"
@@ -29,6 +28,5 @@
         hour: "*"
         month: "*"
         user: "root"
-        job: "ansible-galaxy install "
+        job: "ansible-galaxy install --role-file /opt/ansible/requirements.yml"
         cron_file: "ansible_galaxy"
-      ignore_errors: false
