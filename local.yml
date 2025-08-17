@@ -10,4 +10,10 @@
 
 - name: Proxmox
   ansible.builtin.import_playbook: playbooks/proxmox/play.yml
+
+- name: CFEngine
+  ansible.builtin.import_playbook: playbooks/cfengine/play.yml
+  tags:
+    - cfengine
+    - cf
 ...
