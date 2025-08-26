@@ -1,11 +1,14 @@
 ---
 - name: CFENGINE
-  hosts: 'init'
+  hosts:
+    - 'ubuntu'
+    - 'debian'
+  run_once: true
   connection: local
   gather_facts: false
   become: false
   become_user: root
-  run_once: true
+
   tasks:
     - ansible.builtin.apt_key:
         id: F2EE2A0E76A6D4698AE5301A7420C1429B920A5E
@@ -13,13 +16,11 @@
 
     - ansible.builtin.copy:
         dest: >-
-          /etc/apt/sources.list.d/proxmox.sources
+          /etc/apt/sources.list.d/cfengine.sources
         content: |
           deb https://cfengine-package-repos.s3.amazonaws.com/pub/apt/packages stable main
 
     - ansible.builtin.apt:
         name: cfengine-community
         state: present
-
-
 ...
