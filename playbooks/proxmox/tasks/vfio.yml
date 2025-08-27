@@ -1,0 +1,11 @@
+---
+- ansible.builtin.copy:
+    dest: '/etc/modprobe.d/vfio-pci.conf'
+    content: |
+      options vfio-pci ids=8086:10b9,10de:1b81,10de:10f0 disable_vga=1
+  register: vfio-pci
+
+- when: vfio-pci.changed is defined and vfio-pci.changed == True
+  ansible.builtin.shell: >-
+    update-initramfs -u -k all
+...
