@@ -9,6 +9,10 @@
   tasks:
     - include_tasks: tasks/vfio.yml
 
+    - get_url:
+        url: https://enterprise.proxmox.com/iso/proxmox-ve_9.0-1.iso
+        dest: /var/lib/vz/proxmox-ve_9.0-1.iso
+
     - when: terraform.role not in roles
       ansible.builtin.shell: >-
         pveum role add {{ terraform.role }} -privs '{{ terraform.privs }}'
