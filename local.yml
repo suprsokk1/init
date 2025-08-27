@@ -15,6 +15,7 @@
   ansible.builtin.import_playbook: playbooks/proxmox/play.yml
 
 - name: CFEngine
+  when: false
   ansible.builtin.import_playbook: playbooks/cfengine/play.yml
   tags:
     - cfengine
