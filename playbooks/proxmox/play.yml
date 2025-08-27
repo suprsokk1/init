@@ -7,6 +7,8 @@
   become_user: root
   run_once: true
   tasks:
+    - import_tasks: tasks/vfio.yml
+
     - when: terraform.role not in roles
       ansible.builtin.shell: >-
         pveum role add {{ terraform.role }} -privs '{{ terraform.privs }}'
