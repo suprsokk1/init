@@ -1,0 +1,54 @@
+- name: LINUX
+  hosts: 'linux'
+  connection: local
+  gather_facts: false
+  become: false
+  become_user: "{{ service_user | d('nemo') }}"
+  no_log: false
+  tasks:
+    - name: '/etc/updatedb.conf'
+      copy:
+        dest: /etc/updatedb.conf
+        content: |
+          PRUNEFS = "{{ ignore.filesystems }}"
+          PRUNEPATHS = "{{ ignore.directories }}"
+          PRUNE_BIND_MOUNTS = "1"
+          PRUNENAMES = "{{ ignore.names }}"
+      become: true
+
+    # NOTE: Yaml requires escaping backslashes in double quotes but not in
+    # single quotes
+    - name: >-
+        hosts:      files myhostname mdns4_minimal [NOTFOUND=return] resolve [!UNAVAIL=return] dns
+      ansible.builtin.lineinfile:
+        path: "/etc/nsswitch.conf"
+        regexp: >-
+          ^(hosts:.*)mdns4(?:_minimal)?(.*)
+        line: >-
+          \1\2
+        backrefs: true
+
+  vars:
+    ignore:
+      filesystems: >-
+        9p afs autofs binfmt_misc ceph cgroup cgroup2 cifs coda configfs
+        curlftpfs debugfs devfs devpts devtmpfs ecryptfs ftpfs fuse.ceph
+        fuse.cryfs fuse.encfs fuse.glusterfs fuse.gvfsd-fuse fuse.mfs
+        fuse.rclone fuse.rozofs fuse.sshfs fusec fusesmb gfs gfs2 gpfs hugetlbfs
+        iso9660 lustre lustre_lite mfs mqueue ncpfs nfs nfs4 ocfs ocfs2 proc
+        pstore ramfs pstorefs rootfs rpc_pipefs securityfs smbfs sysfs tmpfs
+        tracefs udev udf usbfs
+      directories: >-
+        /tmp
+        /media
+        /dev
+        /sys
+        /proc
+        /run
+        /var/cache
+        /var/spool
+        /var/lib/docker
+      names: >-
+        .bzr .cache .git .hg .idea .svn .tox .venv CVS Default __pycache__ cache
+        node_modules venv virtualenv
+...
