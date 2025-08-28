@@ -1,10 +1,10 @@
 ---
 roles:
-- name: cargo
-  src: ssh://git@github.com/suprsokk1/ansible-role-cargo.git
-  version: master
-  scm: git
+  - name: geerlingguy.docker
+  - name: geerlingguy.pip
 collections:
-- name: community.general
-- name: community.digitalocean
+  - name: 'community.general'
+  - name: 'community.proxmox'
+  - name: 'community.digitalocean'
+  - name: 'community.docker'
 ...
