@@ -73,6 +73,7 @@
       - "cargo"
       - "pipx"
       - "grub2-emu"
+      - "ansifilter"
 
 - name: Fedora42 | User dotfiles
   hosts: fedora42_laptop_user
@@ -128,7 +129,6 @@
             Alt / "Toggle preview" \
             Alt s "Toggle search" | \
             head -c -2'
-
 
     - copy:
         dest: "{{ ansible_user_dir }}/.gnupg/gpg.conf"
