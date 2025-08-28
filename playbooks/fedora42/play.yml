@@ -66,18 +66,15 @@
       - "pinentry-gnome3"
       - "wlsunset"
       - "editorconfig"
-      # OpenTofu
-      - "tofu"
+      - "tofu"                  # OpenTofu
       - "vagrant"
-      # Sway Window Manager (supplemental packages)
-      - "@swaywm-extended"
-      # misc
+      - "@swaywm-extended"      # Sway Window Manager (supplemental packages)
       - "mosh"
       - "cargo"
       - "pipx"
       - "grub2-emu"
 
-- name: Fedora42 | user dotfiles
+- name: Fedora42 | User dotfiles
   hosts: fedora42_laptop_user
   become: false
   tasks:
