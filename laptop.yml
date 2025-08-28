@@ -1,0 +1,7 @@
+---
+- name: GNU+Linux
+  import_playbook: playbooks/linux/play.yml
+
+- name: Fedora42
+  import_playbook: playbooks/fedora42/play.yml
+...

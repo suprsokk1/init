@@ -1,0 +1,140 @@
+---
+- name: Fedora42 | Create service user
+  hosts: fedora42_laptop_*
+  become: true
+  become_user: "root"
+  run_once: true
+  vars:
+    service_user: >-
+      {{ service_user | d('nemo') }}
+  tasks:
+    - name: SERVICE USER | {{ _service_user }}
+      ansible.builtin.user:
+        name: "{{ _service_user }}"
+        comment: Service user
+        uid: 1040
+        shell: /sbin/nologin
+        group: admin
+
+    - name: SUDO | NEMO
+      community.general.sudoers:
+        name: "{{ _service_user }}"
+        user: "{{ _service_user }}"
+        commands:
+          - /bin/systemctl *
+          - /bin/dnf *
+          - /bin/dnf5 *
+          - /sbin/mount *
+        nopassword: true
+
+- name: Fedora42
+  hosts: fedora42_laptop_*
+  become: true
+  become_user: "{{ service_user }}"
+  no_log: false
+  run_once: true
+  tasks:
+    - name: DNF | MISC
+      ansible.builtin.dnf5:
+        name: "{{ dnf_install_packages }}"
+        state: "present"
+
+    - name: DNF | REMOVE GARBAGE
+      ansible.builtin.dnf5:
+        name: "{{ dnf_uninstall_packages }}"
+        state: "absent"
+
+  vars:
+    dnf_uninstall_packages:
+      - "@libreoffice"
+      - "@container-management"
+
+    dnf_install_packages:
+      - "sway"
+      - "swaybg"
+      - "swaylock"
+      - "swayidle"
+      - "sway-systemd"
+      - "sway-wallpapers"
+      - "sway-config-upstream"
+      - "rofi-themes"
+      - "rofi-wayland"
+      - "kitty"
+      - "kanshi"
+      - "emacs-gtk+x11"
+      - "pinentry-emacs"
+      - "pinentry-gnome3"
+      - "wlsunset"
+      - "editorconfig"
+      # OpenTofu
+      - "tofu"
+      - "vagrant"
+      # Sway Window Manager (supplemental packages)
+      - "@swaywm-extended"
+      # misc
+      - "mosh"
+      - "cargo"
+      - "pipx"
+      - "grub2-emu"
+
+- name: Fedora42 | user dotfiles
+  hosts: fedora42_laptop_user
+  become: false
+  tasks:
+    - file:
+        mode: "0640"
+        path: "{{ ansible_user_dir }}/.gnupg"
+        state: "directory"
+
+    - copy:
+        dest: "{{ ansible_user_dir }}/.gnupg/gpg-agent.conf"
+        mode: "0640"
+        content: |
+          # log-file /tmp/gpg-agent.log
+          # log-file /tmp/stdout
+          # allow-preset-passphrase
+          # allow-loopback-pinentry
+          # use-standard-socket # depricated
+          # debug-all
+          # enable-ssh-support
+          allow-emacs-pinentry
+
+          pinentry-program /usr/bin/pinentry-gnome3
+
+          tpm2daemon-program /usr/libexec/tpm2daemon
+
+          verbose
+          daemon
+          steal-socket
+
+    - copy:
+        dest: "{{ ansible_user_dir }}/.fzfrc"
+        content: |
+          --reverse
+          --margin=0
+          --padding=0
+          --border=none
+          --ansi
+          --exact
+          --multi
+          --height='~70%'
+          --preview-window='left'
+          --bind='alt-a:select-all'
+          --bind='alt-s:toggle-search'
+          --bind='ctrl-t:toggle-all'
+          --bind='alt-/:toggle-preview'
+          --bind='start:unbind(alt-p)+rebind(alt-p)'
+          --bind='alt-p:reload(ps xu|sed 1d)+transform-header(ps xu|head -1)+deselect-all'
+          --info-command='printf '\''%s+%s => %s | '\''  \
+            Alt a "Select all" \
+            Alt p "List user processes" \
+            Alt / "Toggle preview" \
+            Alt s "Toggle search" | \
+            head -c -2'
+
+
+    - copy:
+        dest: "{{ ansible_user_dir }}/.gnupg/gpg.conf"
+        mode: "0640"
+        content: |
+          agent
