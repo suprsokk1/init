@@ -7,6 +7,8 @@
 
 - name: Install Docker compose services
   import_playbook: playbooks/compose/play.yml
+  tags:
+    - never
 
 - name: Laptop setup
   import_playbook: playbooks/laptop/play.yml
