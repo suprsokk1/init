@@ -5,11 +5,6 @@
 - name: Ansible galaxy
   import_playbook: playbooks/galaxy/play.yml
 
-- name: Install Docker compose services
-  import_playbook: playbooks/compose/play.yml
-  tags:
-    - never
-
 - name: Laptop setup
   import_playbook: playbooks/laptop/play.yml
 
