@@ -1,0 +1,4 @@
+---
+- name: PXE Server
+  import_playbook: playbooks/pxe-server/play.yml
+...
