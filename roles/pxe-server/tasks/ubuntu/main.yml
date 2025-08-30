@@ -1,0 +1,362 @@
+---
+- ansible.builtin.include_vars: defaults/ubuntu.yml
+
+- ansible.builtin.include_vars: vars/ubuntu.yml
+
+- name: PXESERVER VARS
+  vars:
+    _http_url: >-
+      {{pxeserver_http_url|d('http://' + ip_address)}}
+  set_fact:
+    http_dir: >-
+      {{pxeserver_install_root}}{{pxeserver_httpd_root_dir}}
+    tftp_dir: >-
+      {{pxeserver_install_root}}{{pxeserver_tftpd_root_dir}}
+    http_root_dir: >-
+      {{pxeserver_install_root}}{{pxeserver_httpd_root_dir}}
+    tftp_root_dir: >-
+      {{pxeserver_install_root}}{{pxeserver_tftpd_root_dir}}
+    subnet: >-
+      {{pxeserver_subnet|d([ipv4.network,ipv4.prefix]|join('/'))}}
+    gateway: >-
+      {{pxeserver_gateway|d(ip_address)}}
+    next_server: >-
+      {{pxeserver_next_server|d(ip_address)}}
+    nameservers:
+      - >-
+        {{pxeserver_nameserver1|d(ip_address)}}
+      - >-
+        {{pxeserver_nameserver2|d(omit)}}
+    http_url: >-
+      {{_http_url}}
+    netmask: >-
+      {{pxeserver_netmask|d(ipv4.netmask)}}
+    dhcp_leases_beginning: >-
+      {{pxeserver_dhcp_leases_beginning}}
+    dhcp_leases_end: >-
+      {{pxeserver_dhcp_leases_end}}
+    http_uefi_boot_image: >-
+      {{_http_url}}/efi/boot/grubx64.efi
+    os_variants: >-
+      {{pxeserver_os_variants}}
+    distros: >-
+      {{pxeserver_distros}}
+    architechtures: >-
+      {{pxeserver_architechtures}}
+
+- no_log: false
+  vars:
+    _iso_images: |
+      ---
+      {% for arch in architechtures %}
+      {% for variant in os_variants %}
+      {% for distro in distros %}
+      - url: >-
+          {{pxeserver_iso_dl_url}}/{{distro.semver}}/{{pxeserver_os}}-{{distro.semver}}-{{variant}}-{{arch}}.iso
+        target: >-
+          {{http_dir}}/iso/{{pxeserver_os}}-{{distro.semver}}-{{variant}}-{{arch}}.iso
+        path: >-
+          {{http_dir}}/iso/{{pxeserver_os}}-{{distro.semver}}-{{variant}}-{{arch}}.iso
+        http_dir: >-
+          {{http_dir}}/{{pxeserver_os}}/{{variant}}/{{arch}}/{{distro.version}}/{{distro.codename_short}}
+        tftp_dir: >-
+          {{tftp_dir}}/{{pxeserver_os}}/{{variant}}/{{arch}}/{{distro.codename_short}}
+        codename_short: >-
+          {{distro.codename_short}}
+      {% endfor %}
+      {% endfor %}
+      {% endfor %}
+      ...
+  set_fact:
+    iso_images: >-
+      {{_iso_images|from_yaml}}
+
+- tags:
+    - test
+    - testing
+    - never
+  set_fact:
+    iso_images: >-
+      {{iso_images[:1]}}
+
+- tags:
+    - debug
+  debug: var=setup.ansible_facts
+
+- tags:
+    - debug
+  debug: msg="{{setup.ansible_facts}}"
+
+- name: Pre create dirs
+  tags:
+    - never
+    - mkdir
+  loop:
+    - tftp_dir
+    - mnt_dir
+    - pxelinux_dir
+  loop_control:
+    loop_var: varname
+    label: >-
+      Creating dir '{{ansible_vars[varname]}}'
+  file:
+    path: >-
+      {{ansible_vars[varname]}}
+    state: directory
+    recurse: true
+
+- name: Install packages
+  register: apt
+  apt:
+    name:
+      - isc-dhcp-server
+      - apache2
+      - dnsmasq
+      - tftpd-hpa
+      - grub2
+      - grub-efi
+      - grub-efi-amd64
+      - 7zip
+    state: present
+
+- name: Download boot images
+  ignore_errors: true
+  shell: apt download pxelinux syslinux-common
+
+- name: Create tftp config
+  register: tftp_cfg
+  copy:
+    dest: /etc/default/tftpd-hpa
+    content: |
+      TFTP_USERNAME="{{pxeserver_tftp_username}}"
+      TFTP_DIRECTORY="{{tftp_dir}}"
+      TFTP_ADDRESS="0.0.0.0:69"
+      TFTP_OPTIONS="{{pxeserver_tftp_options|join(' ')}}"
+
+- name: Start tftp server
+  ignore_errors: &tftp-svc true
+  systemd:
+    name: tftpd-hpa
+    enabled: true
+    state: started
+
+- name: Restart tftp server
+  ignore_errors: *tftp-svc
+  when:
+    - tftp_cfg is changed
+  systemd:
+    name: tftpd-hpa
+    state: restarted
+
+- name: Prepare grub2 network booting
+  loop:
+    - >-
+      {{tftp_dir}}
+    - >-
+      {{http_dir}}
+  loop_control:
+    loop_var: dir
+  shell: >-
+    grub-mknetdir
+    --net-directory={{dir}}
+    --subdir=/boot/grub
+    -d /usr/lib/grub/i386-pc
+  args:
+    creates:
+      - >-
+        {{tftp_dir}}/boot/grub/i386-pc/core.0
+
+- name: Dynamically include a task list
+  loop: "{{iso_images}}"
+  loop_control:
+    loop_var: iso_image
+    extended: true
+    # break_when: >-
+    #   ansible_loop.first
+  include_tasks: extract-iso.yml
+
+- name: grubx64.efi
+  copy:
+    remote_src: true
+    src: /usr/lib/grub/x86_64-efi/monolithic/grubnetx64.efi
+    dest: "{{tftp_dir}}/boot/grubx64.efi"
+
+- name: Create grub2 config
+  copy:
+    dest: >-
+      {{tftp_dir}}/boot/grub.cfg
+    content: |
+      set timeout=30
+
+      loadfont unicode
+
+      set menu_color_normal=white/black
+      set menu_color_highlight=black/light-gray
+
+      {% for arch in architechtures  %}
+      {% for variant in os_variants  %}
+      {% for distro in distros  %}
+      menuentry "Install Ubuntu {{variant}} {{distro.codename_short}} ({{distro.version}})" {
+        set gfxpayload=keep
+        linux   /boot/{{distro.codename_short|lower}}/vmlinuz ip=dhcp cloud-config-url=/dev/null url=/iso/ubuntu-{{distro.semver}}-{{variant}}-{{arch}}.iso autoinstall ds="nocloud-net;s=/{{pxeserver_os}}/{{distro.codename_short|lower}}/" --- # Don't forget the slash at the end.
+        initrd  /boot/{{distro.codename_short|lower}}/initrd
+      }
+      {% endfor %}
+      {% endfor %}
+      {% endfor %}
+
+- tags:
+    - pxelinux
+  file:
+    path: >-
+      {{tftp_dir}}/pxelinux.cfg/
+    state: directory
+
+- name: PXELinux config
+  tags:
+    - pxelinux
+  vars:
+    _http_server: >-
+      {{pxeserver_http_server|d(ip_address)}}
+  copy:
+    dest: '{{tftp_dir}}/pxelinux.cfg/default'
+    content: |
+      default menu.c32
+      menu title Ubuntu installer
+      {% for arch in architechtures  %}
+      {% for variant in os_variants %}
+      {% for d in distros %}
+      label {{d.codename_short}}
+        menu label Install {{pxeserver_os|capitalize}} {{d.codename}} ({{d.version}})
+        menu default
+        kernel {{d.codename_short}}/vmlinuz
+        initrd {{d.codename_short}}/initrd
+        append ip=dhcp cloud-config-url=/dev/null url=/iso/ubuntu-{{d.semver}}-{{variant}}-{{arch}}.iso autoinstall ds=nocloud-net;s=http://{{_http_server}}/ubuntu/
+      {% endfor %}
+      {% endfor %}
+      {% endfor %}
+
+      prompt 0
+      timeout 300
+
+- name: dhcpd config
+  register: dhcpd_cfg
+  vars:
+    dhcp_network_prefix: >-
+      {{
+         pxeserver_dhcp_leases_beginning |
+           d(ipv4.network|regex_replace('\.\d{1,3}$',''))
+      }}
+  copy:
+    dest: /etc/dhcpd.conf
+    content: |
+      option domain-name-servers {{nameservers|join(',')}};
+      option routers {{gateway}};
+      default-lease-time 14400;
+      ddns-update-style none;
+
+      class "pxeclients" {
+        match if substring (option vendor-class-identifier, 0, 9) = "PXEClient";
+        option vendor-class-identifier "PXEClient";
+        next-server {{next_server}};
+        filename "/bootx64.efi";
+      }
+
+      class "httpclients" {
+        match if substring (option vendor-class-identifier, 0, 10) = "HTTPClient";
+        option vendor-class-identifier "HTTPClient";
+        filename "{{http_uefi_boot_image}}";
+      }
+
+      subnet {{subnet}} netmask {{netmask}} {
+        range dynamic-bootp {{dhcp_network_prefix}}.{{dhcp_leases_beginning}} {{dhcp_network_prefix}}.{{dhcp_leases_end}};
+        default-lease-time 14400;
+        max-lease-time 172800;
+      }
+
+# class "httpclients" {
+#   match if substring (option vendor-class-identifier, 0, 10) = "HTTPClient";
+#   option vendor-class-identifier "HTTPClient";
+#   filename {{http_url}}/EFI/BOOT/bootx64.efi";
+# }
+
+- name: Start dhcpd server
+  systemd:
+    name: isc-dhcp-server
+    enabled: true
+    state: started
+
+- name: Restart dhcpd server
+  when:
+    - dhcpd_cfg is changed
+  systemd:
+    name: isc-dhcp-server
+    state: restarted
+
+- name: apache2 whitelist '/srv/' # FIXME use 'lineinfile'
+  register: httpd_cfg
+  template:
+    src: apache2/apache2.conf
+    dest: /etc/apache2/apache2.conf
+
+- name: Manage files and file properties
+  file:
+    owner: 'www-data'
+    path: >-
+      {{http_dir}}
+    state: directory
+
+- name: apache2 default site '{{http_dir}}'
+  register: httpd_site_cfg
+  with_fileglob:
+    - '/etc/apache2/sites-enabled/*default*.conf'
+  loop_control:
+    loop_var: conf
+  template:
+    src: apache2/site.conf
+    dest: >-
+      {{conf}}
+    backup: true
+
+- name: Start http server
+  systemd:
+    name: apache2
+    enabled: true
+    state: started
+
+- name: Restart http server
+  systemd:
+    name: isc-dhcp-server
+    state: restarted
+
+- name: Create dnsmasq config
+  register: dns_cfg
+  template:
+    src: dnsmasq/dnsmasq.conf
+    dest: /etc/dnsmasq.conf
+    backup: true
+
+- name: disable dhcp on interfaces
+  loop:
+    - eth0                      # FIXME
+  loop_control:
+    loop_var: iface
+  register: dns_disable_dhcp_cfg
+  template:
+    src: dnsmasq/disable-dhcp.conf
+    dest: >-
+      /etc/dnsmasq.d/disable-dhcp-{{iface}}.conf
+    backup: false
+
+- name: Start DNS server
+  systemd:
+    name: dnsmasq
+    enabled: true
+    state: started
+
+- name: Restart DNS server
+  systemd:
+    name: dnsmasq
+    enabled: true
+    state: restarted
+...

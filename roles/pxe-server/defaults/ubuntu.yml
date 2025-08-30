@@ -1,0 +1,16 @@
+---
+pxeserver_os: ubuntu
+pxeserver_latest_os_version: 24.10
+pxeserver_os_variants:
+  # - desktop
+  - live-server
+
+# pxeserver_subnet: 192.168.111.0
+# pxeserver_netboot_dir: TODO
+# pxeserver_http_server: TODO
+# pxeserver_http_root: TODO
+# pxeserver_tftpboot_root_dir: /srv/tftp
+# pxeserver_tftp_username: tftp
+# pxeserver_tftp_options:
+#   - --secure
+...

@@ -1,0 +1,51 @@
+---
+- name: Create temporary build directory
+  register: tmpdir
+  ansible.builtin.tempfile:
+    state: directory
+
+- name: mkdir
+  loop:
+    - "{{iso_image['target']|dirname}}"
+    - "{{iso_image['http_dir']}}"
+    - "{{iso_image['tftp_dir']}}"
+  file:
+    state: directory
+    dest: >-
+      {{item}}
+    recurse: true
+
+- name: Download ISO images
+  get_url:
+    url: >-
+      {{iso_image.url}}
+    dest: >-
+      {{iso_image.target}}
+
+- name: Unpack ISO
+  shell: |
+    7z x {{iso_image.target}}
+  args:
+    chdir: >-
+      {{tmpdir.path}}
+
+- name: Copy 'vmlinuz' from extraced iso to http document_root
+  copy:
+    remote_src: true
+    src: >-
+      {{tmpdir.path}}/casper/vmlinuz
+    dest: >-
+      {{iso_image.http_dir}}
+
+- name: Copy 'initrd' from extraced iso to http document_root
+  copy:
+    remote_src: true
+    src: >-
+      {{tmpdir.path}}/casper/initrd
+    dest: >-
+      {{iso_image.http_dir}}
+
+- name: Delete files extracted from previous image
+  shell: >-
+    rm -rvf -- {{tmpdir.path}}
+...

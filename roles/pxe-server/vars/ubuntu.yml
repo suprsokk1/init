@@ -1,0 +1,14 @@
+---
+pxeserver_distros:
+  - version: 24.04
+    semver: 24.04.3
+    codename_short: noble
+    codename: Noble Numbat
+    os: ubuntu
+
+  - version: 22.04
+    semver: 22.04.5
+    codename: Jammy Jellyfish
+    codename_short: jammy
+    os: ubuntu
+...

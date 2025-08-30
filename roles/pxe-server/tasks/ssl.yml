@@ -1,0 +1,56 @@
+---
+- apt:
+    name: pesign
+    state: present
+
+- name: SSL CRT + KEY
+  register: certnkey
+  vars:
+    state: New York
+    city: New York
+    org: N/A
+    email: mail@example.com
+    domain: example.com
+  tags: &ssl-tags
+    - cert
+  shell: >-
+    openssl req -newkey rsa:4096 -nodes -x509 -days 365 -keyout server.key -out server.crt
+    -subj
+    "/C=US/ST={{state}}/L={{city}}/O={{org}}/OU=Unit/CN={{domain}}/emailAddress={{email}}"
+  args:
+    chdir: &ssl-dir /root
+    creates:
+      - /root/server.crt
+      - /root/server.key
+
+- name: SSL DER
+  register: der
+  when:
+    - certnkey is successful
+  tags: *ssl-tags
+  shell: >-
+      openssl x509 -in server.crt -outform der -out server.der
+  args:
+    chdir: *ssl-dir
+    creates:
+      - /root/server.der
+
+- name: SSL certs.db
+  register: certsdb
+  when:
+    - der is successful
+  tags: *ssl-tags
+  shell: >-
+    efisiglist -a server.der -o certs.db
+  args:
+    chdir: *ssl-dir
+    creates:
+      - /root/certs.db
+
+- name: Publish 'certs.db'
+  when: certsdb is successful
+  copy:
+    remote_src: true
+    src: /root/certs.db
+    dest: "{{http_dir}}/certs.db"
+...

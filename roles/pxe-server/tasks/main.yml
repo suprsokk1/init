@@ -1,0 +1,46 @@
+---
+- name: Get default network interface
+  register: setup
+  ansible.builtin.setup:
+    gather_subset:
+      - 'network'
+    filter:
+      - 'ansible_eth*'
+      - 'ansible_enp*'
+
+- name: IP_ADDRESS
+  set_fact:
+    ip_address: >-
+      {{data|from_yaml|first}}
+  vars:
+    data: |
+      ---
+      {% for k, v in setup.ansible_facts.items() %}
+      {% if 'ipv4' in v %}
+      - {{v['ipv4']['address']}}
+      {% endif %}
+      {% endfor %}
+      ...
+
+- name: IPV4
+  set_fact:
+    ipv4: >-
+      {{data|from_yaml|first|d(omit)}}
+  vars:
+    data: |
+      ---
+      {% for k, v in setup.ansible_facts.items() %}
+      {% if 'ipv4' in v %}
+      - {{v['ipv4']}}
+      {% endif %}
+      {% endfor %}
+      ...
+
+- import_tasks: ubuntu/main.yml
+  tags:
+    - ubuntu
+
+- import_tasks: ssl.yml
+  tags:
+    - ssl
+...

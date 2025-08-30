@@ -1,0 +1,44 @@
+---
+pxeserver_install_root: "/"
+
+pxeserver_tftpboot_root_dir: srv/tftp
+
+pxeserver_tftpd_root_dir: srv/tftp
+
+pxeserver_httpd_root_dir: srv/www
+
+pxeserver_iso_dl_url: https://ubuntu.hi.no/releases
+
+pxeserver_tftp_username: tftp
+
+pxeserver_architechtures:
+  - amd64
+
+pxeserver_tftp_options:
+  - --secure
+
+pxeserver_dhcp_leases_beginning: 100
+
+pxeserver_dhcp_leases_end: 200
+
+# EXAMPLE:
+# pxeserver_http_server: 192.168.1.1
+# pxeserver_gateway: 192.168.1.1
+# pxeserver_netmask: 255.255.255.0
+# pxeserver_broadcast: 192.168.1.255
+# pxeserver_next_server: 192.168.1.1
+# pxeserver_nameserver1: 1.1.1.1
+# pxeserver_nameserver2: 8.8.8.8
+
+# pxeserver_networks:
+#   - 192.168.1.0/24
+#   - 10.0.0.0/8
+#   - 172.16.0.0/16
+
+# pxeserver_netboot_dir: >-
+#   {{ pxeserver_tftpboot_root_dir }}
+# pxeserver_http_server_boot_root: >-
+#   http://{{ pxeserver_http_server }}
+# pxeserver_http_root: >-
+#   http://{{ pxeserver_http_server }}
+...

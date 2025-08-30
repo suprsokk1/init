@@ -1,0 +1,4 @@
+---
+
+# pxeserver_tftpboot_root_dir: /var/lib/tftpboot
+...
