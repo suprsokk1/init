@@ -1,0 +1,11 @@
+---
+- name: PXE SERVER
+  hosts: 'ubuntu'
+  connection: local
+  gather_facts: false
+  become: false
+  become_user: root
+  no_log: false
+  roles:
+    - name: pxe-server
+...
