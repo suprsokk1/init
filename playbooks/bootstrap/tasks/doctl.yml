@@ -1,0 +1,26 @@
+---
+- name: "Install 'doctl'"
+  ignore_errors: &ignore-err true
+  ansible.builtin.shell: >-
+    snap install doctl &>/dev/null
+  args:
+    creates: '/snap/bin/doctl'
+
+- name: "Create '/root/.config/doctl'"
+  ignore_errors: *ingore-err
+  ansible.builtin.file:
+    dest: '/root/.config/doctl'
+    recurse: true
+    state: 'directory'
+    mode: '0700'
+    owner: 'root'
+    group: 'root'
+
+- name: "Install 'doctl'"
+  ignore_errors: *ingore-err
+  no_log: true
+  ansible.builtin.shell: >-
+    doctl auth init --access-token "{{ do_admin_access_token }}"
+  args:
+    creates: '/root/.config/doctl/config.yaml'
+...

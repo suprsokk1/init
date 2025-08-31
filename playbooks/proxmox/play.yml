@@ -1,0 +1,99 @@
+---
+- name: PROXMOX
+  hosts: 'proxmox'
+  connection: local
+  gather_facts: false
+  become: false
+  become_user: root
+  run_once: true
+  tasks:
+    - include_tasks: tasks/vfio.yml
+
+    - get_url:
+        url: https://enterprise.proxmox.com/iso/proxmox-ve_9.0-1.iso
+        dest: /var/lib/vz/proxmox-ve_9.0-1.iso
+
+    - when: terraform.role not in roles
+      ansible.builtin.shell: >-
+        pveum role add {{ terraform.role }} -privs '{{ terraform.privs }}'
+
+    - when: terraform.user not in users
+      ansible.builtin.shell: >-
+        pveum user add {{ terraform.user }} --password '{{ terraform.password }}'
+
+    - when: terraform.user not in users
+      ansible.builtin.shell: |
+        pveum aclmod / -user {{ terraform.user }} -role {{ terraform.role }} || true
+
+    - name: Download LXC images
+      vars:
+        url: >-
+          https://raw.githubusercontent.com/{{ pull_user }}/data/refs/heads/master/proxmox/lxc/images/download
+      with_items: >-
+        {{ lookup('ansible.builtin.url', url, split_lines=True) | split(",") }}
+      get_url:
+        url: "{{ item }}"
+        dest: "/var/lib/vz/template/cache/{{ item | urlsplit('path') | split('/') | last }}"
+
+    - name: Custom LXC hooks
+      vars:
+        enabled: false
+      copy:
+        dest: /usr/share/lxc/config/common.conf.d/10custom.conf
+        content: |
+          {% if enabled %}
+          lxc.hook.pre-start = /var/lib/pve/snippets/lxc-pre-start-hook
+          lxc.hook.start = /var/lib/pve/snippets/lxc-start-hook
+          {% endif %}
+
+    - template:
+        src: lxc-pre-start-hook
+        dest: /var/lib/pve/snippets/lxc-pre-start-hook
+        mode: '0750'
+
+    - template:
+        src: lxc-start-hook
+        dest: /var/lib/pve/snippets/lxc-start-hook
+        mode: '0750'
+
+    - include_tasks: ./tasks/cloud-init.yml
+
+  vars:
+    proxmox_lxc_image_dir: >-
+      /var/lib/vz/template/cache
+
+    init_url: >-
+      {{ secrets.url }}
+
+    roles: >-
+      {{ proxmox_roles | map(attribute='roleid') }}
+
+    users: >-
+      {{ proxmox_users | map(attribute='userid') }}
+
+    terraform:
+      user: "terraform-prov@pve"
+      role: "TerraformProv"
+      privs: >-
+        Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit
+        Pool.Allocate Sys.Audit Sys.Console Sys.Modify VM.Allocate VM.Audit
+        VM.Clone VM.Config.CDROM VM.Config.Cloudinit VM.Config.CPU
+        VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network
+        VM.Config.Options VM.Migrate VM.Monitor VM.PowerMgmt SDN.Use
+    secrets:
+      url: !vault |
+           $ANSIBLE_VAULT;1.1;AES256
+           63626239626361663935383766393133643062353763626332363864383232326331636531626633
+           6262653662383263333537373434663261336433613930660a313865633533366265363462633461
+           65663632663930383934616361633765316631373130373732653934363535646661396363663433
+           3339346136383531650a353864396535363333323134633263373762333030666135363266363336
+           35643833386438353833343937396136353338353566306436383136636565663161
+
+      password: !vault |
+                $ANSIBLE_VAULT;1.1;AES256
+                30613237653361313365313238353137333839373466656334623665643334643565303965333832
+                3431336230386264353263303538366435346438646338640a383538323934303834326238636666
+                34636434646631653437313661383539363564633037346436346235636464353266633166313663
+                3735653232616166330a633133356538306631613335356236303133346663386136313861333730
+                33643161373464653639326462666162376664623563663037313962323932666432
+...

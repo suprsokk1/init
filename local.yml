@@ -1,3 +1,20 @@
 ---
-- import_playbook: laptop.yml
+- name: Bootstrap ansible-pull
+  import_playbook: playbooks/bootstrap/play.yml
+
+- name: Ansible galaxy
+  import_playbook: playbooks/galaxy/play.yml
+
+- name: Laptop setup
+  import_playbook: playbooks/laptop/play.yml
+
+- name: Proxmox
+  ansible.builtin.import_playbook: playbooks/proxmox/play.yml
+
+- name: CFEngine
+  when: false                   # Until fixed
+  ansible.builtin.import_playbook: playbooks/cfengine/play.yml
+  tags:
+    - cfengine
+    - cf
 ...

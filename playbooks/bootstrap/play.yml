@@ -1,0 +1,120 @@
+---
+- name: BOOTSTRAP
+  hosts: 'new'
+  user: 'root'
+  post_tasks:
+    - name: Bootstrap complete TAG file
+      ansible.builtin.copy:
+        mode: '0400'
+        dest: "{{ bootstrap_complete_tag_file }}"
+        content: '.'
+
+    - name: Reboot machine and send a message
+      when: is.virtual
+      ansible.builtin.reboot:
+        msg: "Who is going to read this!?"
+
+  tasks:
+    - name: cloud-init cleanup
+      include_tasks: tasks/cleanup.yml
+
+    - name: cron
+      include_tasks: tasks/cron.yml
+
+    - ansible.builtin.file:
+        dest: '/etc/ansible'
+        mode: '0755'
+        state: 'directory'
+
+    - name: Ansible config file
+      tags:
+        - never                 # FIXME
+      ansible.builtin.copy:
+        dest: '/etc/ansible/ansible.cfg'
+        mode: '0644'
+        content: |
+          [defaults]
+          vault_password_file=/opt/vault-password-file
+
+    - name: "~/.local/bin"
+      ansible.builtin.file:
+        mode: '0700'
+        dest: '{{ ansible_user_dir }}/.local/bin'
+        state: 'directory'
+
+    - name: "Ansible pull shortcut '~/pull'"
+      ignore_errors: true
+      ansible.builtin.copy:
+        mode: '0750'
+        dest: '{{ ansible_user_dir }}/pull'
+        content: |
+          #!/bin/sh
+          {{ pull_command_base }}
+
+    - ansible.builtin.file:
+        mode: '0750'
+        dest: '/opt'
+        state: 'directory'
+
+    - ansible.builtin.file:
+        mode: '0750'
+        dest: '/opt/ansible-pull'
+        state: 'directory'
+
+    - name: "Create 'requirements.yml'"
+      ignore_errors: false
+      when: requirements_yml is defined
+      ansible.builtin.copy:
+        mode: '0644'
+        dest: '/opt/ansible-pull/requirements.yml'
+        content: |
+          {{ requirements_yml is defined | to_yaml }}
+
+    - name: TODO authd
+      tags:
+        - never
+      ansible.builtin.shell: >-
+        add-apt-repository -y ppa:ubuntu-enterprise-desktop/authd
+        && apt update
+        && apt upgrade -y
+        && apt-get install -y authd
+        && python3 -m pips install pydo
+
+    - include_tasks: tasks/pkl.yml
+
+    - include_tasks: tasks/doctl.yml
+
+  vars:
+    pull_command_base: >-
+      ansible-pull
+      --url={{ pull_url }}
+      --checkout={{ pull_branch }}
+      --vault-password-file /opt/vault-password-file
+
+    pull_command_default: >-
+      {{ pull_command_base }} --only-if-changed
+
+    pull_command_fast_full: >-
+      {{ pull_command_base }}
+
+    requirements_yml:
+      roles:
+        - name: 'Cargo'
+          src: 'ssh://git@github.com/suprsokk1/ansible-role-cargo.git'
+          version: master
+          scm: git
+      collections:
+        - name: 'community.general'
+        - name: 'community.digitalocean'
+
+    do_admin_access_token: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      35626232366630386433616136643630343831633331343761656436303132303263613163376535
+      3431303339376363366639333962643137613932326331360a343333636365633330613766336632
+      37303832386334323430313636336664633738376238316131643537376332636434633163373831
+      3763303737383163370a323661303632653761346665636431343730323636666166613733313236
+      31316464333064643066663261636566303635323830613061616138653263343333323836323135
+      35353864303837326362386638316462393136336637303966393965373063613366653336363361
+      37343266336362396230626335643337343837386332313761373962663463613562323534323238
+      33616132656633616336
+...
